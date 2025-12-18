@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Web Chat Advanced</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0e0e0e;--panel:#161616;--border:#333;--accent:#4ccfff;--text:#fff;}
+body.light{--bg:#f4f6fb;--panel:#fff;--border:#ccc;--accent:#0077ff;--text:#000;}
+*{box-sizing:border-box;font-family:'Inter',sans-serif;}
+body{margin:0;background:var(--bg);color:var(--text);display:flex;justify-content:center;align-items:flex-start;height:100vh;transition:.3s;}
+button{cursor:pointer}
+.hidden{display:none;opacity:0;transition:.3s;}
+.visible{opacity:1;transition:.3s;}
+#startMenu,#groupChoiceMenu,#createBox,#joinBox{margin-top:40px;background:var(--panel);padding:24px;border-radius:14px;width:320px;text-align:center;animation:fadeIn .5s;}
+#startMenu input,#groupChoiceMenu button,#createBox input,#createBox button,#joinBox input,#joinBox button{width:100%;margin-top:10px;padding:10px;border-radius:10px;border:none;}
+#app{display:flex;width:900px;height:600px;margin-top:20px;border-radius:12px;overflow:hidden;background:var(--panel);opacity:0;transition:.5s;}
+#chatContainer{flex:1;display:flex;flex-direction:column;position:relative;}
+#topBar{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--border);}
+#chatArea{flex:1;overflow:auto;padding:10px;background:var(--bg);}
+.msg{transform:scale(.8);opacity:0;margin-bottom:8px;animation:pop .25s forwards;}
+.msg.me{color:#4cff4c}
+.msg.other{color:#4ccfff}
+.msg img{max-width:200px;border-radius:8px;margin-top:4px;vertical-align:middle;}
+.msg .avatar{width:24px;height:24px;border-radius:50%;vertical-align:middle;margin-right:6px;}
+#inputBar{display:flex;padding:10px;border-top:1px solid var(--border);gap:6px;}
+#inputBar input{flex:1;padding:10px;border-radius:10px;border:none;outline:none;}
+#inputBar button{padding:10px 14px;border-radius:10px;border:none;background:var(--accent);color:#000;}
+#membersPanel{width:250px;background:var(--panel);border-left:1px solid var(--border);padding:10px;overflow:auto;}
+.member{margin-bottom:6px;display:flex;align-items:center;gap:6px;transition:.3s;cursor:pointer;}
+.member img{width:32px;height:32px;border-radius:50%;object-fit:cover;}
+.ownerBadge{font-weight:bold;color:gold;}
+#ownerMenu{display:none;margin-top:10px;border:1px solid var(--border);padding:10px;background:var(--panel);border-radius:10px;transition:.3s;}
+#settings{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;}
+#settings .box{background:var(--panel);padding:20px;border-radius:14px;width:280px;text-align:center;}
+#settings input,#settings button,#settings select{width:100%;padding:10px;margin-top:10px;border-radius:10px;border:none;}
+#memberInfoPanel{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;opacity:0;transition:.3s;pointer-events:none;}
+#memberInfoPanel.visible{opacity:1;pointer-events:auto;}
+#memberInfoBox{background:var(--panel);padding:20px;border-radius:14px;width:260px;text-align:center;}
+#memberInfoPic{width:64px;height:64px;border-radius:50%;margin-bottom:10px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:32px;}
+#ownerActionsForMember{margin-top:10px;}
+#ownerActionsForMember button{margin:4px;}
+@keyframes fadeIn{from{opacity:0;transform:scale(.95);}to{opacity:1;transform:scale(1);} }
+@keyframes pop{to{opacity:1;transform:scale(1);} }
+
+/* CUSTOM ALERT */
+#customAlert{
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ffcccc;
+  color: #900;
+  padding: 16px 24px;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  display: none;
+  opacity: 0;
+  z-index: 9999;
+  font-weight: bold;
+  text-align: center;
+  transition: opacity 0.5s, transform 0.5s;
+}
+#customAlert button{
+  margin-top: 8px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 8px;
+  background: #900;
+  color: #fff;
+  cursor: pointer;
+}
+</style>
+</head>
+<body>
+
+<!-- START MENU -->
+<div id="startMenu">
+  <h2>Enter Username</h2>
+  <input id="usernameInput" placeholder="Username">
+  <button id="usernameBtn">Continue</button>
+</div>
+
+<!-- GROUP CHOICE -->
+<div id="groupChoiceMenu" class="hidden">
+  <h2>Hello <span id="displayName"></span></h2>
+  <button id="createGroupBtn">Create Group</button>
+  <button id="joinGroupBtn">Join Group</button>
+</div>
+
+<!-- CREATE / JOIN BOXES -->
+<div id="createBox" class="hidden">
+  <input id="groupNameInput" placeholder="Group Name">
+  <input id="groupIconInput" placeholder="Group Icon URL">
+  <input id="groupPassInput" placeholder="Group Password">
+  <button id="createGroupConfirm">Create</button>
+  <button onclick="closeCreateJoin()">Cancel</button>
+</div>
+
+<div id="joinBox" class="hidden">
+  <input id="groupIdInput" placeholder="Group ID">
+  <input id="joinPassInput" placeholder="Group Password">
+  <button id="joinGroupConfirm">Join</button>
+  <button onclick="closeCreateJoin()">Cancel</button>
+</div>
+
+<!-- CHAT -->
+<div id="app">
+  <div id="chatContainer">
+    <div id="topBar">
+      <div>
+        <span id="groupIconDisplay"></span>
+        <span id="groupNameDisplay"></span>
+      </div>
+      <div>
+        <span id="myNameDisplay"></span>
+        <button onclick="openSettings()">⚙️</button>
+        <button id="ownerCrown" style="display:none" onclick="toggleOwnerMenu()">👑</button>
+      </div>
+    </div>
+    <div id="chatArea"></div>
+    <div id="inputBar">
+      <input id="msgInput" placeholder="Message">
+      <button onclick="sendMsg()">Send</button>
+      <button onclick="imgInput.click()">📷</button>
+      <input type="file" id="imgInput" accept="image/*" hidden>
+    </div>
+  </div>
+  <div id="membersPanel"></div>
+  <div id="ownerMenu">
+    <h4>Owner Menu</h4>
+    <div>ID: <span id="ownerGroupID"></span></div>
+    <div id="ownerActions"></div>
+    <button onclick="shutdownGroup()">Shutdown Group</button>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div id="settings">
+  <div class="box">
+    <h3>Settings</h3>
+    <input id="profileUpload" type="file" accept="image/*">
+    <button onclick="toggleTheme()">Toggle Theme</button>
+    <button onclick="closeSettings()">Close</button>
+  </div>
+</div>
+
+<!-- MEMBER INFO PANEL -->
+<div id="memberInfoPanel">
+  <div id="memberInfoBox">
+    <div id="memberInfoPic"></div>
+    <div id="memberInfoName"></div>
+    <div id="ownerActionsForMember" class="hidden">
+      <button id="kickBtn">Kick</button>
+      <button id="banBtn">Ban</button>
+      <button id="muteBtn">Mute</button>
+    </div>
+    <button onclick="closeMemberInfo()">Close</button>
+  </div>
+</div>
+
+<!-- CUSTOM ALERT -->
+<div id="customAlert">
+  <span id="customAlertText"></span><br>
+  <button id="customAlertBtn">OK</button>
+</div>
+
+<script>
+// ------------------ VARIÁVEIS ------------------
+let username='', profilePic='', finalName='';
+let isHost=false, peer, conn;
+let users={}, banned=[], group={name:'',icon:'',password:''};
+let groupId='';
+let isMuted = false; // variável local do usuário
+
+// ELEMENTOS
+const startMenu=document.getElementById('startMenu');
+const usernameInput=document.getElementById('usernameInput');
+const usernameBtn=document.getElementById('usernameBtn');
+const groupChoiceMenu=document.getElementById('groupChoiceMenu');
+const displayName=document.getElementById('displayName');
+const createGroupBtn=document.getElementById('createGroupBtn');
+const joinGroupBtn=document.getElementById('joinGroupBtn');
+const createBox=document.getElementById('createBox');
+const joinBox=document.getElementById('joinBox');
+const createGroupConfirm=document.getElementById('createGroupConfirm');
+const joinGroupConfirm=document.getElementById('joinGroupConfirm');
+const app=document.getElementById('app');
+const chatArea=document.getElementById('chatArea');
+const msgInput=document.getElementById('msgInput');
+const imgInput=document.getElementById('imgInput');
+const membersPanel=document.getElementById('membersPanel');
+const ownerMenu=document.getElementById('ownerMenu');
+const ownerCrown=document.getElementById('ownerCrown');
+const ownerGroupID=document.getElementById('ownerGroupID');
+const myNameDisplay=document.getElementById('myNameDisplay');
+const groupNameDisplay=document.getElementById('groupNameDisplay');
+const groupIconDisplay=document.getElementById('groupIconDisplay');
+const settings=document.getElementById('settings');
+const memberInfoPanel=document.getElementById('memberInfoPanel');
+const memberInfoName=document.getElementById('memberInfoName');
+const memberInfoPic=document.getElementById('memberInfoPic');
+const ownerActionsForMember=document.getElementById('ownerActionsForMember');
+const kickBtn=document.getElementById('kickBtn');
+const banBtn=document.getElementById('banBtn');
+const muteBtn=document.getElementById('muteBtn');
+
+// ------------------ ALERTA CUSTOM ------------------
+function showCustomAlert(text){
+  const alertBox=document.getElementById('customAlert');
+  const alertText=document.getElementById('customAlertText');
+  const alertBtn=document.getElementById('customAlertBtn');
+
+  alertText.innerText=text;
+  alertBox.style.display='block';
+  alertBox.style.opacity='1';
+  alertBox.style.transform='translateX(-50%) translateY(0)';
+
+  let fadeTimeout=setTimeout(()=>closeCustomAlert(),6000);
+
+  alertBtn.onclick=()=>{
+    clearTimeout(fadeTimeout);
+    closeCustomAlert();
+  }
+}
+function closeCustomAlert(){
+  const alertBox=document.getElementById('customAlert');
+  alertBox.style.opacity='0';
+  alertBox.style.transform='translateX(-50%) translateY(-20px)';
+  setTimeout(()=>{alertBox.style.display='none';},500);
+}
+
+// ------------------ FUNÇÕES ------------------
+// STEP 1: USERNAME
+usernameBtn.onclick = ()=>{
+  username=usernameInput.value.trim()||'Guest';
+  finalName=username;
+  displayName.innerText=finalName;
+  startMenu.classList.add('hidden');
+  groupChoiceMenu.classList.remove('hidden');
+}
+
+// STEP 2: CREATE / JOIN
+createGroupBtn.onclick=()=>{groupChoiceMenu.classList.add('hidden'); createBox.classList.remove('hidden');}
+joinGroupBtn.onclick=()=>{groupChoiceMenu.classList.add('hidden'); joinBox.classList.remove('hidden');}
+function closeCreateJoin(){createBox.classList.add('hidden'); joinBox.classList.add('hidden'); groupChoiceMenu.classList.remove('hidden');}
+
+// STEP 3: CREATE GROUP
+createGroupConfirm.onclick=()=>{
+  group.name=groupNameInput.value.trim()||'My Group';
+  group.icon=groupIconInput.value.trim()||'';
+  group.password=groupPassInput.value.trim()||'';
+  isHost=true;
+  groupId='group-'+Math.random().toString(36).substr(2,6);
+
+  peer=new Peer(groupId,{debug:2});
+  peer.on('open',id=>{
+    users[id]={name:finalName,pic:profilePic,muted:false};
+    myNameDisplay.innerText=finalName;
+    groupNameDisplay.innerText=group.name;
+    ownerGroupID.innerText=groupId;
+    if(group.icon) groupIconDisplay.innerHTML=`<img src="${group.icon}" style="width:32px;height:32px;border-radius:50%;">`;
+    ownerCrown.style.display='inline';
+    updateMembers();
+    createBox.classList.add('hidden');
+    app.style.opacity='1';
+  });
+  peer.on('connection',c=>{
+    c.on('data',data=>{
+      if(data.type==='join'){
+        users[c.peer]={name:data.name,pic:data.pic||'',muted:false};
+        c.send({type:'userList',users:users});
+        updateMembers();
+        sendJoinNotification(c.peer,data.name);
+      } else handleData(data);
+    });
+  });
+}
+
+// STEP 4: JOIN GROUP
+joinGroupConfirm.onclick=()=>{
+  const id=groupIdInput.value.trim();
+  if(!id) return showCustomAlert('Group ID required');
+  const pass=joinPassInput.value.trim();
+  peer=new Peer(undefined,{debug:2});
+  peer.on('open',()=>{
+    conn = peer.connect(id);
+    conn.on('open',()=>{
+      conn.send({type:'join',name:finalName,pic:profilePic,password:pass});
+      users[peer.id]={name:finalName,pic:profilePic,muted:false};
+      myNameDisplay.innerText = finalName;
+      joinBox.classList.add('hidden');
+      app.style.opacity='1';
+    });
+    conn.on('data',handleData);
+  });
+  peer.on('connection',handlePeerConnection);
+}
+
+// HANDLE DATA
+function handleData(data){
+  switch(data.type){
+    case 'userList': users=data.users; updateMembers(); break;
+    case 'msg': if(!isMuted) addMsg(data.name,data.text,false,data.pic); break;
+    case 'img': if(!isMuted) addImg(data.name,data.data,false,data.pic); break;
+    case 'shutdown': showCustomAlert('Server shutdown'); setTimeout(()=>location.reload(),6000); break;
+    case 'mute':
+      if(data.targetId === peer.id){
+        isMuted = data.mute;
+        if(isMuted){msgInput.value = "You're muted."; msgInput.disabled = true;}
+        else{msgInput.value=''; msgInput.disabled=false;}
+      }
+      break;
+  }
+}
+
+// ADD MSG / IMG
+function addMsg(name,text,me,pic=''){
+  const div=document.createElement('div');
+  div.className='msg '+(me?'me':'other');
+  let imgHTML=pic?`<img src="${pic}" class="avatar">`: '';
+  div.innerHTML=`${imgHTML}<span>${name}</span>: ${text}`;
+  chatArea.appendChild(div);
+  chatArea.scrollTop=chatArea.scrollHeight;
+}
+function addImg(name,src,me,pic=''){
+  const div=document.createElement('div');
+  div.className='msg '+(me?'me':'other');
+  let imgHTML=pic?`<img src="${pic}" class="avatar">`:'';
+  div.innerHTML=`${imgHTML}<span>${name}</span><br><img src="${src}">`;
+  chatArea.appendChild(div);
+  chatArea.scrollTop=chatArea.scrollHeight;
+}
+
+// ------------------ MEMBROS ------------------
+function updateMembers(){
+  membersPanel.innerHTML='';
+  for(let id in users){
+    const div=document.createElement('div');
+    div.className='member';
+    let avatarHTML='';
+    if(users[id].pic){avatarHTML=`<img src="${users[id].pic}">`;}
+    else{
+      const colors=['#FF4500','#FF8C00','#FFD700','#32CD32','#1E90FF','#BA55D3','#FF69B4'];
+      const color=colors[id.charCodeAt(0)%colors.length];
+      const letter=users[id].name[0].toUpperCase();
+      avatarHTML=`<div style="width:32px;height:32px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;">${letter}</div>`;
+    }
+    div.innerHTML=avatarHTML+' '+users[id].name+(id===peer.id?' (You)':'');
+    div.onclick=()=>showMemberInfo(id);
+    membersPanel.appendChild(div);
+  }
+}
+
+function showMemberInfo(id){
+  const user=users[id];
+  memberInfoPic.innerHTML=''; memberInfoPic.style.background=''; memberInfoPic.style.color='';
+  memberInfoPic.style.display='flex'; memberInfoPic.style.alignItems='center'; memberInfoPic.style.justifyContent='center';
+  memberInfoPic.style.fontWeight='bold'; memberInfoPic.style.fontSize='32px';
+
+  if(user.pic){
+    const img=document.createElement('img');
+    img.src=user.pic; img.style.width='64px'; img.style.height='64px'; img.style.borderRadius='50%';
+    memberInfoPic.appendChild(img);
+  } else {
+    const colors=['#FF4500','#FF8C00','#FFD700','#32CD32','#1E90FF','#BA55D3','#FF69B4'];
+    const color=colors[id.charCodeAt(0)%colors.length];
+    const letter=user.name[0].toUpperCase();
+    memberInfoPic.style.background=color; memberInfoPic.style.color='#fff'; memberInfoPic.innerText=letter;
+  }
+
+  memberInfoName.innerText=user.name;
+
+  if(isHost && id!==peer.id){
+    ownerActionsForMember.classList.remove('hidden');
+    kickBtn.onclick=()=>{kick(id); closeMemberInfo();};
+    banBtn.onclick=()=>{banUser(id); closeMemberInfo();};
+    muteBtn.onclick=()=>{
+      const targetMuted = !users[id].muted;
+      users[id].muted = targetMuted;
+      if(peer.connections[id]){
+        peer.connections[id].forEach(c=>c.send({type:'mute',mute:targetMuted,targetId:id}));
+      }
+    };
+  } else ownerActionsForMember.classList.add('hidden');
+
+  memberInfoPanel.classList.add('visible');
+}
+function closeMemberInfo(){memberInfoPanel.classList.remove('visible');}
+
+// ------------------ OWNER ------------------
+function toggleOwnerMenu(){ownerMenu.style.display = ownerMenu.style.display==='block'?'none':'block';}
+function kick(id){if(isHost && peer.connections[id]){peer.connections[id].forEach(c=>c.send({type:'shutdown'})); delete users[id]; updateMembers();}}
+function banUser(id){banned.push(id); kick(id);}
+function shutdownGroup(){if(isHost) broadcast({type:'shutdown'}); showCustomAlert('Server shutdown');}
+
+// ------------------ BROADCAST ------------------
+function broadcast(data){for(let id in users){if(id!==peer.id && peer.connections[id]){peer.connections[id].forEach(c=>c.send(data));}}}
+
+// ------------------ SETTINGS ------------------
+function openSettings(){settings.style.display='flex'}
+function closeSettings(){settings.style.display='none'}
+function toggleTheme(){document.body.classList.toggle('light')}
+document.getElementById('profileUpload').addEventListener('change',e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    profilePic=reader.result;
+    users[peer.id].pic=profilePic;
+    updateMembers();
+    if(memberInfoPanel.classList.contains('visible') && memberInfoName.innerText===users[peer.id].name){
+      memberInfoPic.innerHTML='';
+      const img=document.createElement('img'); img.src=profilePic; img.style.width='64px'; img.style.height='64px'; img.style.borderRadius='50%';
+      memberInfoPic.appendChild(img);
+    }
+  }
+  reader.readAsDataURL(file);
+});
+
+// ------------------ JOIN NOTIFICATIONS ------------------
+function sendJoinNotification(id,name){
+  const messages=[`@${name} just came here!`,`Welcome, @${name}!`,`Hey guys, a new guy came here!`];
+  const msg=messages[Math.floor(Math.random()*messages.length)];
+  addMsg('System',msg,false,'');
+  if(isHost) broadcast({type:'msg',name:'System',text:msg,pic:''});
+  else if(conn) conn.send({type:'msg',name:'System',text:msg,pic:''});
+}
+
+// ------------------ SEND MSG ------------------
+function sendMsg(){
+  if(isMuted){msgInput.value="You're muted."; return;}
+  const txt=msgInput.value.trim(); const file=imgInput.files[0];
+  if(!txt && !file) return;
+
+  if(txt){
+    addMsg(finalName,txt,true,profilePic);
+    const data={type:'msg',name:finalName,text:txt,pic:profilePic};
+    if(isHost) broadcast(data); else if(conn) conn.send(data);
+  }
+  if(file){
+    const reader=new FileReader();
+    reader.onload=()=>{
+      addImg(finalName,reader.result,true,profilePic);
+      const data={type:'img',name:finalName,data:reader.result,pic:profilePic};
+      if(isHost) broadcast(data); else if(conn) conn.send(data);
+    };
+    reader.readAsDataURL(file); imgInput.value='';
+  }
+  msgInput.value='';
+}
+
+// ------------------ PEER CONNECTION ------------------
+function handlePeerConnection(c){c.on('data',handleData);}
+
+// ------------------ ESCAPE SETTINGS ------------------
+settings.addEventListener('click',e=>{if(e.target===settings)closeSettings();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSettings();});
+</script>
+
+</body>
+</html>
