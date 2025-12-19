@@ -7,6 +7,38 @@
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
+  .screenshareTile{
+  position:relative;
+  width:200px;
+  height:150px;
+  background:var(--panel);
+  border-radius:10px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  color:#fff;
+  font-weight:bold;
+  font-size:18px;
+}
+
+.screenshareTile video, .screenshareTile img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  border-radius:10px;
+}
+
+.screenshareTile .tileName{
+  position:absolute;
+  bottom:4px;
+  left:4px;
+  background:rgba(0,0,0,0.5);
+  padding:2px 6px;
+  border-radius:4px;
+  font-size:14px;
+}
+
 :root{--bg:#0e0e0e;--panel:#161616;--border:#333;--accent:#4ccfff;--text:#fff;}
 body.light{--bg:#f4f6fb;--panel:#fff;--border:#ccc;--accent:#0077ff;--text:#000;}
 *{box-sizing:border-box;font-family:'Inter',sans-serif;}
@@ -109,16 +141,18 @@ button{cursor:pointer}
 <div id="app">
   <div id="chatContainer">
     <div id="topBar">
-      <div>
-        <span id="groupIconDisplay"></span>
-        <span id="groupNameDisplay"></span>
-      </div>
-      <div>
-        <span id="myNameDisplay"></span>
-        <button onclick="openSettings()">⚙️</button>
-        <button id="ownerCrown" style="display:none" onclick="toggleOwnerMenu()">👑</button>
-      </div>
-    </div>
+  <div>
+    <span id="groupIconDisplay"></span>
+    <span id="groupNameDisplay"></span>
+  </div>
+  <div>
+    <span id="myNameDisplay"></span>
+    <button onclick="openSettings()">⚙️</button>
+    <button id="ownerCrown" style="display:none" onclick="toggleOwnerMenu()">👑</button>
+    <button onclick="toggleCamera()">📷 Camera</button>
+    <button onclick="toggleScreenShare()">🖥️ ScreenShare</button>
+  </div>
+</div>
     <div id="chatArea"></div>
     <div id="inputBar">
       <input id="msgInput" placeholder="Message">
@@ -685,6 +719,114 @@ function handlePeerConnection(c){c.on('data',handleData);}
 // ---------------- ESC ----------------
 settings.addEventListener('click',e=>{if(e.target===settings)closeSettings();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSettings();});
+const screensharePanel = document.getElementById('screensharePanel');
+let localStream = null;
+let isSharingScreen = false;
+let isCameraOn = false;
+
+// BOTÕES PARA TOGGLE (você pode adicionar no topBar ou plusMenu)
+function toggleCamera(){
+  if(isCameraOn){
+    stopLocalStream();
+    isCameraOn = false;
+    updateScreenshareTile(peer.id);
+  }else{
+    navigator.mediaDevices.getUserMedia({video:true, audio:false})
+      .then(stream=>{
+        localStream = stream;
+        isCameraOn = true;
+        updateScreenshareTile(peer.id, stream);
+      }).catch(e=>showCustomAlert('Camera access denied'));
+  }
+}
+
+function toggleScreenShare(){
+  if(isSharingScreen){
+    stopLocalStream();
+    isSharingScreen = false;
+    updateScreenshareTile(peer.id);
+  }else{
+    navigator.mediaDevices.getDisplayMedia({video:true, audio:false})
+      .then(stream=>{
+        localStream = stream;
+        isSharingScreen = true;
+        updateScreenshareTile(peer.id, stream);
+      }).catch(e=>showCustomAlert('Screen share denied'));
+  }
+}
+
+function stopLocalStream(){
+  if(localStream){
+    localStream.getTracks().forEach(track=>track.stop());
+    localStream = null;
+  }
+}
+
+// ---------------- ATUALIZA O RETÂNGULO ----------------
+function updateScreenshareTile(id, stream=null){
+  let tile = document.getElementById('tile-'+id);
+  const user = users[id];
+  if(!tile){
+    tile = document.createElement('div');
+    tile.id = 'tile-'+id;
+    tile.className = 'screenshareTile';
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'tileName';
+    nameDiv.innerText = user.name;
+    tile.appendChild(nameDiv);
+    screensharePanel.appendChild(tile);
+  }
+  
+  // limpa conteúdo anterior (exceto nome)
+  Array.from(tile.children).forEach(c=>{
+    if(!c.classList.contains('tileName')) tile.removeChild(c);
+  });
+
+  // adiciona video ou imagem
+  if(stream){
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.autoplay = true;
+    video.muted = true;
+    tile.appendChild(video);
+  }else if(user.pic){
+    const img = document.createElement('img');
+    img.src = user.pic;
+    tile.appendChild(img);
+  }else{
+    // letra do usuário
+    const colors=['#FF4500','#FF8C00','#FFD700','#32CD32','#1E90FF','#BA55D3','#FF69B4'];
+    const color=colors[id.charCodeAt(0)%colors.length];
+    const letterDiv = document.createElement('div');
+    letterDiv.style.background=color;
+    letterDiv.style.width='100%';
+    letterDiv.style.height='100%';
+    letterDiv.style.display='flex';
+    letterDiv.style.alignItems='center';
+    letterDiv.style.justifyContent='center';
+    letterDiv.style.fontSize='48px';
+    letterDiv.style.fontWeight='bold';
+    letterDiv.innerText = user.name[0].toUpperCase();
+    tile.appendChild(letterDiv);
+  }
+}
+function startCallTo(id){
+  if(localStream){
+    const call = peer.call(id, localStream);
+    call.on('stream', remoteStream=>{
+      updateScreenshareTile(id, remoteStream);
+    });
+  }
+}
+
+// Ao receber uma chamada
+peer.on('call', call=>{
+  call.answer(localStream || null);
+  call.on('stream', remoteStream=>{
+    updateScreenshareTile(call.peer, remoteStream);
+  });
+});
+
 
 </script>
 </body>
