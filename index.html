@@ -395,16 +395,22 @@ createGroupConfirm.onclick=()=>{
     updateMembers();
     createBox.classList.add('hidden'); app.style.opacity='1';
   });
-  peer.on('connection',c=>{
-    c.on('data',data=>{
-      if(data.type==='join'){
-        users[c.peer]={name:data.name,pic:data.pic||'',muted:false};
-        c.send({type:'userList',users:users});
-        updateMembers();
-        sendJoinNotification(c.peer,data.name);
-      } else handleData(data);
-    });
+peer.on('connection', c=>{
+  c.on('data', data=>{
+    if(data.type==='join'){
+      if(group.password && data.password !== group.password){
+        c.send({type:'shutdown'});
+        c.close();
+        return;
+      }
+
+      users[c.peer] = {name: data.name, pic: data.pic||'', muted:false};
+      c.send({type:'userList', users: users, group: group});
+      updateMembers();
+      sendJoinNotification(c.peer, data.name);
+    } else handleData(data);
   });
+});
 }
 peer.on('call', call => {
   // Aceita automaticamente
@@ -416,24 +422,47 @@ peer.on('call', call => {
 
 
 // ---------------- JOIN GROUP ----------------
-joinGroupConfirm.onclick=()=>{
+joinGroupConfirm.onclick = () => {
   PlaySound(soundBtnClick);
-  const id=groupIdInput.value.trim(); if(!id) return showCustomAlert('Group ID required');
-  const pass=joinPassInput.value.trim();
-  peer=new Peer(undefined,{debug:2});
-  peer.on('open',()=>{
-    conn = peer.connect(id);
-    conn.on('open',()=>{
-      conn.send({type:'join',name:finalName,pic:profilePic,password:pass});
-      users[peer.id]={name:finalName,pic:profilePic,muted:false};
-      myNameDisplay.innerText=finalName;
-      joinBox.classList.add('hidden'); app.style.opacity='1';
-    });
-    conn.on('data',handleData);
-  });
-  peer.on('connection',handlePeerConnection);
-}
+  const id = groupIdInput.value.trim();
+  if(!id) return showCustomAlert('Group ID required');
+  const pass = joinPassInput.value.trim();
 
+  peer = new Peer(undefined,{debug:2});
+
+  peer.on('open', ()=>{
+    conn = peer.connect(id);
+    conn.on('open', ()=>{
+      // envia join com senha
+      conn.send({type:'join', name: finalName, pic: profilePic, password: pass});
+      users[peer.id] = {name: finalName, pic: profilePic, muted: false};
+      myNameDisplay.innerText = finalName;
+      joinBox.classList.add('hidden');
+      app.style.opacity='1';
+    });
+    conn.on('data', (data)=>{
+      if(data.type === 'userList'){
+        users = data.users;
+        if(data.group){
+          group = data.group;
+          setTextSafe('groupNameDisplay', group.name);
+          setHTMLSafe(
+            'groupIconDisplay',
+            group.icon ? `<img src="${group.icon}" style="width:32px;height:32px;border-radius:50%;">` : ''
+          );
+        }
+        updateMembers();
+      } else if(data.type === 'shutdown'){
+        showCustomAlert('Wrong password or server shutdown');
+        setTimeout(()=>location.reload(),4000);
+      } else handleData(data);
+    });
+  });
+
+  peer.on('connection', c=>{
+    handlePeerConnection(c);
+  });
+};
 // ---------------- HANDLE DATA ----------------
 function handleData(data){
   switch(data.type){
