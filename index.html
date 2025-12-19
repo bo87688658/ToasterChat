@@ -60,6 +60,14 @@ button{cursor:pointer}
 #customInputAlert input{
   margin-top: 8px; padding: 6px 12px; border-radius: 8px; border: 1px solid #900; width: 80%;
 }
+/* MENTION */
+.mention{
+  background: rgba(0,120,255,0.25);
+  color: #7fd4ff;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-weight: 600;
+}
 
 @keyframes fadeIn{from{opacity:0;transform:scale(.95);}to{opacity:1;transform:scale(1);} }
 @keyframes pop{to{opacity:1;transform:scale(1);} }
@@ -180,7 +188,19 @@ const defaultEmojis = {'logo':'https://ia801709.us.archive.org/0/items/566-sem-t
 const userEmojis = {...defaultEmojis};
 let nextEmojiNumber=1;
 
-// ELEMENTS
+// ---------------- SOUNDS ----------------
+function PlaySound(url){
+  const audio = new Audio(url);
+  audio.play().catch(e=>console.log('Sound error:', e));
+}
+
+const soundAlert = 'https://dn710201.ca.archive.org/0/items/windowsxpsamsung/SSCriticalStop.mp3';
+const soundInputAlert = 'https://dn710201.ca.archive.org/0/items/windowsxpsamsung/SSCriticalStop.mp3';
+const soundMention = 'https://dn710201.ca.archive.org/0/items/windowsxpsamsung/SSContactOnline.mp3';
+const soundNormalMsg = 'https://dn710201.ca.archive.org/0/items/windowsxpsamsung/SSBallon.mp3';
+const soundBtnClick = 'https://dn710201.ca.archive.org/0/items/windowsxpsamsung/SSBallon.mp3';
+
+// ---------------- ELEMENTS ----------------
 const startMenu=document.getElementById('startMenu');
 const usernameInput=document.getElementById('usernameInput');
 const usernameBtn=document.getElementById('usernameBtn');
@@ -219,6 +239,7 @@ const emojiUploadInput=document.getElementById('emojiUploadInput');
 
 // ---------------- ALERT FUNCTIONS ----------------
 function showCustomAlert(text){
+  PlaySound(soundAlert);
   const alertBox=document.getElementById('customAlert');
   const alertText=document.getElementById('customAlertText');
   const alertBtn=document.getElementById('customAlertBtn');
@@ -226,7 +247,11 @@ function showCustomAlert(text){
   alertBox.style.display='block';
   setTimeout(()=>{alertBox.style.opacity='1';},50);
   let fadeTimeout=setTimeout(()=>closeCustomAlert(),6000);
-  alertBtn.onclick=()=>{clearTimeout(fadeTimeout);closeCustomAlert();}
+  alertBtn.onclick=()=>{
+    PlaySound(soundBtnClick);
+    clearTimeout(fadeTimeout);
+    closeCustomAlert();
+  }
 }
 function closeCustomAlert(){
   const alertBox=document.getElementById('customAlert');
@@ -236,6 +261,7 @@ function closeCustomAlert(){
 
 let customInputCallback = null;
 function showCustomInputAlert(promptText, callback){
+  PlaySound(soundInputAlert);
   const alertBox=document.getElementById('customInputAlert');
   const inputBox=document.getElementById('customInputBox');
   const alertText=document.getElementById('customInputText');
@@ -245,7 +271,11 @@ function showCustomInputAlert(promptText, callback){
   alertBox.style.display='block';
   setTimeout(()=>{alertBox.style.opacity='1';},50);
   customInputCallback = callback;
-  btn.onclick=()=>{const value=inputBox.value.trim(); if(value){callback(value); closeCustomInputAlert();}};
+  btn.onclick=()=>{
+    PlaySound(soundBtnClick);
+    const value=inputBox.value.trim();
+    if(value){callback(value); closeCustomInputAlert();}
+  };
 }
 function closeCustomInputAlert(){
   const alertBox=document.getElementById('customInputAlert');
@@ -257,12 +287,13 @@ function closeCustomInputAlert(){
 usernameBtn.onclick = ()=>{username=usernameInput.value.trim()||'Guest'; finalName=username; displayName.innerText=finalName; startMenu.classList.add('hidden'); groupChoiceMenu.classList.remove('hidden');}
 
 // ---------------- CREATE / JOIN ----------------
-createGroupBtn.onclick=()=>{groupChoiceMenu.classList.add('hidden'); createBox.classList.remove('hidden');}
-joinGroupBtn.onclick=()=>{groupChoiceMenu.classList.add('hidden'); joinBox.classList.remove('hidden');}
+createGroupBtn.onclick=()=>{PlaySound(soundBtnClick); groupChoiceMenu.classList.add('hidden'); createBox.classList.remove('hidden');}
+joinGroupBtn.onclick=()=>{PlaySound(soundBtnClick); groupChoiceMenu.classList.add('hidden'); joinBox.classList.remove('hidden');}
 function closeCreateJoin(){createBox.classList.add('hidden'); joinBox.classList.add('hidden'); groupChoiceMenu.classList.remove('hidden');}
 
 // ---------------- CREATE GROUP ----------------
 createGroupConfirm.onclick=()=>{
+  PlaySound(soundBtnClick);
   group.name=groupNameInput.value.trim()||'My Group';
   group.icon=groupIconInput.value.trim()||'';
   group.password=groupPassInput.value.trim()||'';
@@ -279,15 +310,34 @@ createGroupConfirm.onclick=()=>{
     updateMembers();
     createBox.classList.add('hidden'); app.style.opacity='1';
   });
-  peer.on('connection',c=>{c.on('data',data=>{if(data.type==='join'){users[c.peer]={name:data.name,pic:data.pic||'',muted:false}; c.send({type:'userList',users:users}); updateMembers(); sendJoinNotification(c.peer,data.name);} else handleData(data);});});
+  peer.on('connection',c=>{
+    c.on('data',data=>{
+      if(data.type==='join'){
+        users[c.peer]={name:data.name,pic:data.pic||'',muted:false};
+        c.send({type:'userList',users:users});
+        updateMembers();
+        sendJoinNotification(c.peer,data.name);
+      } else handleData(data);
+    });
+  });
 }
 
 // ---------------- JOIN GROUP ----------------
 joinGroupConfirm.onclick=()=>{
+  PlaySound(soundBtnClick);
   const id=groupIdInput.value.trim(); if(!id) return showCustomAlert('Group ID required');
   const pass=joinPassInput.value.trim();
   peer=new Peer(undefined,{debug:2});
-  peer.on('open',()=>{conn = peer.connect(id); conn.on('open',()=>{conn.send({type:'join',name:finalName,pic:profilePic,password:pass}); users[peer.id]={name:finalName,pic:profilePic,muted:false}; myNameDisplay.innerText=finalName; joinBox.classList.add('hidden'); app.style.opacity='1';}); conn.on('data',handleData);});
+  peer.on('open',()=>{
+    conn = peer.connect(id);
+    conn.on('open',()=>{
+      conn.send({type:'join',name:finalName,pic:profilePic,password:pass});
+      users[peer.id]={name:finalName,pic:profilePic,muted:false};
+      myNameDisplay.innerText=finalName;
+      joinBox.classList.add('hidden'); app.style.opacity='1';
+    });
+    conn.on('data',handleData);
+  });
   peer.on('connection',handlePeerConnection);
 }
 
@@ -295,8 +345,8 @@ joinGroupConfirm.onclick=()=>{
 function handleData(data){
   switch(data.type){
     case 'userList': users=data.users; updateMembers(); break;
-    case 'msg': if(!isMuted) addMsg(data.name,data.text,false,data.pic); break;
-    case 'img': if(!isMuted) addImg(data.name,data.data,false,data.pic); break;
+    case 'msg': if(!isMuted){addMsg(data.name,data.text,false,data.pic);} break;
+    case 'img': if(!isMuted){addImg(data.name,data.data,false,data.pic);} break;
     case 'shutdown': showCustomAlert('Server shutdown'); setTimeout(()=>location.reload(),6000); break;
     case 'mute': if(data.targetId===peer.id){isMuted=data.mute; if(isMuted){msgInput.value="You're muted."; msgInput.disabled=true;} else{msgInput.value=''; msgInput.disabled=false;}} break;
     case 'avatarChange': if(users[data.id]){users[data.id].pic=data.pic; updateMembers();} break;
@@ -305,11 +355,39 @@ function handleData(data){
 
 // ---------------- MSG / IMG ----------------
 function addMsg(name,text,me,pic=''){
-  for(let emoji in userEmojis){text=text.replaceAll(`:${emoji}:`,`<img src="${userEmojis[emoji]}" style="width:24px;height:24px;">`);}
-  const div=document.createElement('div'); div.className='msg '+(me?'me':'other');
-  let imgHTML=pic?`<img src="${pic}" class="avatar">`: '';
-  div.innerHTML=`${imgHTML}<span>${name}</span>: ${text}`;
-  chatArea.appendChild(div); chatArea.scrollTop=chatArea.scrollHeight;
+  let hasMention = false;
+  const myTag = '@' + finalName;
+
+  if(text.includes(myTag)){
+    hasMention = true;
+    text = text.replaceAll(
+      myTag,
+      `<span class="mention">${myTag}</span>`
+    );
+  }
+
+  for(let emoji in userEmojis){
+    text = text.replaceAll(
+      `:${emoji}:`,
+      `<img src="${userEmojis[emoji]}" style="width:24px;height:24px;">`
+    );
+  }
+
+  // 🔊 SOM APENAS AQUI
+  if(hasMention){
+    PlaySound(soundMention);
+  }else{
+    PlaySound(soundNormalMsg);
+  }
+
+  const div=document.createElement('div');
+  div.className='msg '+(me?'me':'other');
+
+  let imgHTML = pic ? `<img src="${pic}" class="avatar">` : '';
+  div.innerHTML = `${imgHTML}<span>${name}</span>: ${text}`;
+
+  chatArea.appendChild(div);
+  chatArea.scrollTop=chatArea.scrollHeight;
 }
 function addImg(name,src,me,pic=''){
   const div=document.createElement('div'); div.className='msg '+(me?'me':'other');
@@ -393,17 +471,27 @@ function sendJoinNotification(id,name){
 // ---------------- SEND MSG ----------------
 function sendMsg(){
   if(isMuted){msgInput.value="You're muted."; return;}
-  let txt=msgInput.value.trim(); const file=imgInput.files[0];
+  let txt=msgInput.value.trim(); 
+  const file=imgInput.files[0];
   if(!txt && !file) return;
   if(txt){addMsg(finalName,txt,true,profilePic); const data={type:'msg',name:finalName,text:txt,pic:profilePic}; if(isHost) broadcast(data); else if(conn) conn.send(data);}
-  if(file){const reader=new FileReader(); reader.onload=()=>{addImg(finalName,reader.result,true,profilePic); const data={type:'img',name:finalName,data:reader.result,pic:profilePic}; if(isHost) broadcast(data); else if(conn) conn.send(data);}; reader.readAsDataURL(file); imgInput.value='';}
+  if(file){
+    const reader=new FileReader();
+    reader.onload=()=>{
+      addImg(finalName,reader.result,true,profilePic);
+      const data={type:'img',name:finalName,data:reader.result,pic:profilePic};
+      if(isHost) broadcast(data); else if(conn) conn.send(data);
+    };
+    reader.readAsDataURL(file);
+    imgInput.value='';
+  }
   msgInput.value='';
 }
 
 // ---------------- PLUS MENU ----------------
-plusBtn.onclick=()=>{plusMenu.style.display = plusMenu.style.display==='flex'?'none':'flex';}
-plusImageBtn.onclick=()=>{imgInput.click();}
-plusEmojiBtn.onclick=()=>{emojiUploadInput.click();}
+plusBtn.onclick=()=>{PlaySound(soundBtnClick); plusMenu.style.display = plusMenu.style.display==='flex'?'none':'flex';}
+plusImageBtn.onclick=()=>{PlaySound(soundBtnClick); imgInput.click();}
+plusEmojiBtn.onclick=()=>{PlaySound(soundBtnClick); emojiUploadInput.click();}
 
 // ---------------- EMOJI UPLOAD ----------------
 emojiUploadInput.addEventListener('change', e=>{
@@ -423,6 +511,7 @@ function handlePeerConnection(c){c.on('data',handleData);}
 // ---------------- ESC ----------------
 settings.addEventListener('click',e=>{if(e.target===settings)closeSettings();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSettings();});
+
 </script>
 </body>
 </html>
