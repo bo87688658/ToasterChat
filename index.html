@@ -242,6 +242,8 @@ button{cursor:pointer}
 
 <script>
 
+
+
 let localVideoStream = null;  // para screen share
 let localAudioStream = null;  // para microfone
 let outgoingCalls = {};       // chamadas de áudio ativas
@@ -748,11 +750,11 @@ let localStream = null;
 let isVoiceOn = false;
 let mutedUsers = {}; // ID: true/false
 
-// Alterna voz do dono do tile
 function toggleVoice(id){
-  if(id !== peer.id) return; // só o dono do tile pode ativar
-  if(isVoiceOn) stopVoice();
-  else startVoice();
+    if(id !== peer.id) return; // só o dono do tile pode ativar
+
+    if(isVoiceOn) stopVoice();
+    else startVoice();
 }
 
 function startVoice() {
@@ -764,7 +766,7 @@ function startVoice() {
             isVoiceOn = true;
             updateVoiceIcon(peer.id);
 
-            // Reproduz sua própria voz
+            // Reproduz a própria voz **somente agora**
             let selfAudio = document.getElementById('selfAudio');
             if(!selfAudio){
                 selfAudio = document.createElement('audio');
@@ -775,30 +777,38 @@ function startVoice() {
             }
             selfAudio.srcObject = stream;
 
-            // chama cada usuário conectado
+            // Chama todos os usuários conectados
             for(let id in users){
                 if(id !== peer.id && peer.connections[id]){
                     const call = peer.call(id, stream);
                     outgoingCalls[id] = call;
                     call.on('stream', remoteStream => playRemoteAudio(remoteStream, id));
-                    call.on('close', ()=> delete outgoingCalls[id]);
+                    call.on('close', () => delete outgoingCalls[id]);
                 }
             }
         })
         .catch(err => showCustomAlert("Microphone denied: " + err.message));
 }
-function stopVoice(){
-  if(localAudioStream){
-    localAudioStream.getTracks().forEach(track => track.stop());
-    localAudioStream = null;
-    isVoiceOn = false;
-    updateVoiceIcon(peer.id);
 
-    for(let id in outgoingCalls){
-      outgoingCalls[id].close();
+function stopVoice() {
+    if(localAudioStream){
+        localAudioStream.getTracks().forEach(track => track.stop());
+        localAudioStream = null;
+        isVoiceOn = false;
+        updateVoiceIcon(peer.id);
+
+        // Fecha chamadas ativas
+        for(let id in outgoingCalls){
+            outgoingCalls[id].close();
+        }
+        outgoingCalls = {};
+
+        // Remove áudio próprio
+        const selfAudio = document.getElementById('selfAudio');
+        if(selfAudio){
+            selfAudio.remove();
+        }
     }
-    outgoingCalls = {};
-  }
 }
 
 function playRemoteAudio(stream, id){
