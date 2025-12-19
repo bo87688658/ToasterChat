@@ -33,7 +33,6 @@
 
 .closeBtn, .voiceBtn {
   position: absolute;
-  top: 4px;
   width: 24px;
   height: 24px;
   border: none;
@@ -44,17 +43,18 @@
 }
 
 .closeBtn {
+  top: 4px;
   right: 4px;
   background: rgba(255,0,0,0.8);
   color: #fff;
 }
 
 .voiceBtn {
+  top: 4px;
   left: 4px;
   background: rgba(0,150,0,0.8);
   color: #fff;
 }
-
 :root{--bg:#0e0e0e;--panel:#161616;--border:#333;--accent:#4ccfff;--text:#fff;}
 body.light{--bg:#f4f6fb;--panel:#fff;--border:#ccc;--accent:#0077ff;--text:#000;}
 *{box-sizing:border-box;font-family:'Inter',sans-serif;}
@@ -126,13 +126,6 @@ button{cursor:pointer}
 <!-- START MENU -->
 <div id="screensharePanel" style="display:flex; flex-wrap:wrap; gap:8px; padding:10px;"></div>
 
-<!-- Cada tile terá -->
-<div id="tile-USERID" class="screenshareTile owner">
-  <div class="tileName">Username</div>
-  <button class="closeBtn">X</button>
-  <button class="voiceBtn">🔊</button>
-  <!-- video / img / letra será inserido aqui -->
-</div>
 
 <div id="startMenu">
   <h2>Enter Username</h2>
@@ -248,6 +241,11 @@ button{cursor:pointer}
 </div>
 
 <script>
+
+let localVideoStream = null;  // para screen share
+let localAudioStream = null;  // para microfone
+let outgoingCalls = {};       // chamadas de áudio ativas
+
 // ---------------- VARIABLES ----------------
 let username='', profilePic='', finalName='';
 let isHost=false, peer, conn;
@@ -747,16 +745,67 @@ settings.addEventListener('click',e=>{if(e.target===settings)closeSettings();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSettings();});
 const screensharePanel = document.getElementById('screensharePanel');
 let localStream = null;
-let isCameraOn = false;
-let isSharingScreen = false;
 let isVoiceOn = false;
 let mutedUsers = {}; // ID: true/false
 
-// Atualiza tile (X e Voice)
-function updateScreenshareTile(id, stream=null){
+// Alterna voz do dono do tile
+function toggleVoice(id){
+  if(id !== peer.id) return; // só o dono do tile pode ativar
+  if(isVoiceOn) stopVoice();
+  else startVoice();
+}
+
+function startVoice() {
+  if(localAudioStream) return; // já ativo
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(stream => {
+      localAudioStream = stream;
+      isVoiceOn = true;
+      updateVoiceIcon(peer.id);
+
+      // chamar cada usuário conectado
+      for(let id in users){
+        if(id !== peer.id && peer.connections[id]){
+          const call = peer.call(id, stream);
+          outgoingCalls[id] = call;
+          call.on('stream', remoteStream => playRemoteAudio(remoteStream, id));
+          call.on('close', ()=> delete outgoingCalls[id]);
+        }
+      }
+    })
+    .catch(err => showCustomAlert("Microphone denied: " + err.message));
+}
+
+function stopVoice(){
+  if(localAudioStream){
+    localAudioStream.getTracks().forEach(track => track.stop());
+    localAudioStream = null;
+    isVoiceOn = false;
+    updateVoiceIcon(peer.id);
+
+    for(let id in outgoingCalls){
+      outgoingCalls[id].close();
+    }
+    outgoingCalls = {};
+  }
+}
+
+function playRemoteAudio(stream, id){
+  let audio = document.getElementById('audio-'+id);
+  if(!audio){
+    audio = document.createElement('audio');
+    audio.id = 'audio-'+id;
+    audio.autoplay = true;
+    document.body.appendChild(audio);
+  }
+  audio.srcObject = stream;
+}
+
+// Função de criar/atualizar tile
+function updateScreenshareTile(id, videoStream=null){
   let tile = document.getElementById('tile-'+id);
   const user = users[id];
-
+  
   if(!tile){
     tile = document.createElement('div');
     tile.id = 'tile-'+id;
@@ -767,46 +816,44 @@ function updateScreenshareTile(id, stream=null){
     nameDiv.innerText = user.name;
     tile.appendChild(nameDiv);
 
-    // Botão X sempre visível
-    if(id === peer.id) {
+    // X só para o dono do tile
+    if(id === peer.id){
       const closeBtn = document.createElement('button');
       closeBtn.className = 'closeBtn';
       closeBtn.innerText = 'X';
-      closeBtn.onclick = ()=>{
-        stopLocalStream();
-        isSharingScreen = false;
-        isCameraOn = false;
-        isVoiceOn = false;
+      closeBtn.onclick = () => {
+        stopScreenShare();
+        stopVoice();
         tile.remove();
       };
       tile.appendChild(closeBtn);
     }
 
-    // Botão Voice
+    // Botão de voz
     const voiceBtn = document.createElement('button');
     voiceBtn.className = 'voiceBtn';
-    voiceBtn.innerText = isVoiceOn && id===peer.id ? '🔇' : '🔊';
-    voiceBtn.onclick = ()=>{
-      if(id===peer.id){
-        toggleVoice();
-      }
-    }
+    voiceBtn.innerText = (id === peer.id && isVoiceOn) ? '🔊' : '🔇';
+    voiceBtn.onclick = () => toggleVoice(id);
     tile.appendChild(voiceBtn);
 
     screensharePanel.appendChild(tile);
   }
 
-  // Remove conteúdo anterior (vídeo / img / letra)
-  Array.from(tile.children).forEach(c=>{
-    if(!c.classList.contains('tileName') && !c.classList.contains('closeBtn') && !c.classList.contains('voiceBtn')) tile.removeChild(c);
+  // Remove conteúdo antigo (vídeo/foto/letra)
+  Array.from(tile.children).forEach(c => {
+    if(!c.classList.contains('tileName') &&
+       !c.classList.contains('closeBtn') &&
+       !c.classList.contains('voiceBtn')){
+      tile.removeChild(c);
+    }
   });
 
-  // Adiciona vídeo ou imagem ou letra
-  if(stream){
+  // Conteúdo do tile
+  if(videoStream){
     const video = document.createElement('video');
-    video.srcObject = stream;
+    video.srcObject = videoStream;
     video.autoplay = true;
-    video.muted = id === peer.id;
+    video.muted = (id === peer.id);
     tile.appendChild(video);
   } else if(user.pic){
     const img = document.createElement('img');
@@ -827,25 +874,6 @@ function updateScreenshareTile(id, stream=null){
     tile.appendChild(letterDiv);
   }
 }
-
-// Alterna voice chat local
-function toggleVoice(){
-  if(isVoiceOn){
-    stopLocalStream();
-    isVoiceOn = false;
-  } else {
-    navigator.mediaDevices.getUserMedia({audio:true})
-      .then(stream=>{
-        localStream = stream;
-        isVoiceOn = true;
-        broadcast({type:'voiceStream',id:peer.id}); // notifica outros usuários
-      })
-      .catch(e=>{
-        showCustomAlert("Microphone denied: " + e.message);
-      });
-  }
-}
-
 // Mod pode mutar usuários
 function muteUserVoice(id, mute){
   mutedUsers[id] = mute;
@@ -865,7 +893,9 @@ function updateVoiceIcon(id){
   }
 }
 // ---------------- ATUALIZA O RETÂNGULO ----------------
-function updateScreenshareTile(id, stream=null){
+function updateScreenshareTile(id, stream){
+  if(!stream) return; // ❌ se não houver stream, não cria tile
+
   let tile = document.getElementById('tile-'+id);
   const user = users[id];
 
@@ -874,40 +904,41 @@ function updateScreenshareTile(id, stream=null){
     tile.id = 'tile-'+id;
     tile.className = 'screenshareTile';
 
-    // se for o dono do stream, adiciona classe 'owner'
-    if(id === peer.id) tile.classList.add('owner');
-
+    // Nome
     const nameDiv = document.createElement('div');
     nameDiv.className = 'tileName';
     nameDiv.innerText = user.name;
     tile.appendChild(nameDiv);
 
+    // X sempre visível no dono
+    if(id === peer.id){
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'closeBtn';
+      closeBtn.innerText = 'X';
+      closeBtn.onclick = ()=>{
+        stopLocalStream();
+        isVoiceOn = false;
+        tile.remove(); // remove o retângulo
+      };
+      tile.appendChild(closeBtn);
+    }
+
+    // Voice button
+    const voiceBtn = document.createElement('button');
+    voiceBtn.className = 'voiceBtn';
+    voiceBtn.innerText = isVoiceOn && id===peer.id ? '🔇' : '🔊';
+    voiceBtn.onclick = ()=>toggleVoice(id);
+    tile.appendChild(voiceBtn);
+
     screensharePanel.appendChild(tile);
   }
 
-  // limpa conteúdo anterior (exceto nome e botão)
+  // Remove conteúdo anterior
   Array.from(tile.children).forEach(c=>{
-    if(!c.classList.contains('tileName') && !c.classList.contains('closeBtn')) tile.removeChild(c);
+    if(!c.classList.contains('tileName') && !c.classList.contains('closeBtn') && !c.classList.contains('voiceBtn')) tile.removeChild(c);
   });
 
-  // botão X (só para dono do tile)
-  if(id === peer.id && (stream || isSharingScreen || isCameraOn)){
-    let btn = tile.querySelector('.closeBtn');
-    if(!btn){
-      btn = document.createElement('button');
-      btn.className = 'closeBtn';
-      btn.innerText = 'X';
-      btn.onclick = ()=>{
-        stopLocalStream();
-        isSharingScreen = false;
-        isCameraOn = false;
-        tile.remove(); // remove o retângulo
-      };
-      tile.appendChild(btn);
-    }
-  }
-
-  // adiciona vídeo, imagem ou letra
+  // Conteúdo: stream, foto ou letra
   if(stream){
     const video = document.createElement('video');
     video.srcObject = stream;
@@ -942,14 +973,49 @@ function startCallTo(id){
   }
 }
 
-// Ao receber uma chamada
-peer.on('call', call=>{
-  call.answer(localStream || null);
-  call.on('stream', remoteStream=>{
-    updateScreenshareTile(call.peer, remoteStream);
-  });
-});
+let isScreenSharing = false;
 
+function toggleScreenShare() {
+  if (isScreenSharing) {
+    // Para o screenshare
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      localStream = null;
+    }
+    isScreenSharing = false;
+  } else {
+    // Inicia o screenshare
+    navigator.mediaDevices.getDisplayMedia({ video: true })
+      .then(stream => {
+        localStream = stream;
+        isScreenSharing = true;
+        updateScreenshareTile(peer.id, stream); // Cria ou atualiza o tile
+      })
+      .catch(e => {
+        showCustomAlert("ScreenShare denied: " + e.message);
+      });
+  }
+}
+function startVoiceCall() {
+  navigator.mediaDevices.getUserMedia({audio:true})
+    .then(stream => {
+      localStream = stream;
+      isVoiceOn = true;
+      updateVoiceIcon(peer.id);
+
+      // chama todos os usuários conectados
+      for (let id in users) {
+        if (id !== peer.id && peer.connections[id]) {
+          const call = peer.call(id, stream);
+          call.on('stream', remoteStream => {
+            // cria um tile só de áudio ou toca em background
+            playRemoteAudio(remoteStream, id);
+          });
+        }
+      }
+    })
+    .catch(e => showCustomAlert("Microphone denied: " + e.message));
+}
 
 </script>
 </body>
