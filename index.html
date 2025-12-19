@@ -921,7 +921,7 @@ function updateVoiceIcon(id){
   if(tile){
     const btn = tile.querySelector('.voiceBtn');
     if(btn){
-      btn.innerText = (id===peer.id && isVoiceOn) ? '🔇' : '🔊';
+      btn.innerText = (id===peer.id && isVoiceOn) ? '🔊' : '🔇';
     }
   }
 }
@@ -959,7 +959,7 @@ function updateScreenshareTile(id, stream){
     // Voice button
     const voiceBtn = document.createElement('button');
     voiceBtn.className = 'voiceBtn';
-    voiceBtn.innerText = isVoiceOn && id===peer.id ? '🔇' : '🔊';
+    btn.innerText = (id===peer.id && isVoiceOn) ? '🔊' : '🔇';
     voiceBtn.onclick = ()=>toggleVoice(id);
     tile.appendChild(voiceBtn);
 
