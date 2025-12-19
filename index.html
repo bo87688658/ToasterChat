@@ -406,6 +406,14 @@ createGroupConfirm.onclick=()=>{
     });
   });
 }
+peer.on('call', call => {
+  // Aceita automaticamente
+  call.answer(localStream || null);
+  call.on('stream', remoteStream => {
+    updateScreenshareTile(call.peer, remoteStream);
+  });
+});
+
 
 // ---------------- JOIN GROUP ----------------
 joinGroupConfirm.onclick=()=>{
@@ -750,64 +758,46 @@ let localStream = null;
 let isVoiceOn = false;
 let mutedUsers = {}; // ID: true/false
 
-function toggleVoice(id){
-    if(id !== peer.id) return;
-
-    if(isVoiceOn) stopVoice();
-    else startVoice();
+function toggleVoice() {
+  if (isVoiceOn) stopVoice();
+  else startVoice();
 }
 
 function startVoice() {
-    if(localAudioStream) return;
-
-    navigator.mediaDevices.getUserMedia({ audio: true })
+  if (localAudioStream) return;
+  navigator.mediaDevices.getUserMedia({ audio: true })
     .then(stream => {
-        localAudioStream = stream;
-        isVoiceOn = true;
-        updateVoiceIcon(peer.id);
+      localAudioStream = stream;
+      isVoiceOn = true;
+      updateVoiceIcon(peer.id);
 
-        // Cria elemento de áudio da própria voz
-        let selfAudio = document.getElementById('selfAudio');
-        if(!selfAudio){
-            selfAudio = document.createElement('audio');
-            selfAudio.id = 'selfAudio';
-            selfAudio.autoplay = true;
-            selfAudio.muted = false; // ouvir a própria voz
-            document.body.appendChild(selfAudio);
+      for (let id in users) {
+        if (id !== peer.id && peer.connections[id]) {
+          const call = peer.call(id, stream);
+          call.on('stream', remoteStream => playRemoteAudio(remoteStream, id));
+          outgoingCalls[id] = call;
         }
-        selfAudio.srcObject = stream;
+      }
 
-        // Chama todos os usuários conectados
-        for(let id in users){
-            if(id !== peer.id && peer.connections[id]){
-                const call = peer.call(id, stream);
-                outgoingCalls[id] = call;
-                call.on('stream', remoteStream => playRemoteAudio(remoteStream, id));
-                call.on('close', () => delete outgoingCalls[id]);
-            }
-        }
+      // O próprio usuário pode ouvir seu áudio
+      playRemoteAudio(stream, peer.id);
     })
-    .catch(err => showCustomAlert("Microphone denied: " + err.message));
+    .catch(e => showCustomAlert("Microphone denied: " + e.message));
 }
 
 function stopVoice() {
-    if(localAudioStream){
-        localAudioStream.getTracks().forEach(track => track.stop());
-        localAudioStream = null;
-        isVoiceOn = false;
-        updateVoiceIcon(peer.id);
+  if (!localAudioStream) return;
+  localAudioStream.getTracks().forEach(track => track.stop());
+  localAudioStream = null;
+  isVoiceOn = false;
+  updateVoiceIcon(peer.id);
 
-        // Fecha chamadas ativas
-        for(let id in outgoingCalls){
-            outgoingCalls[id].close();
-        }
-        outgoingCalls = {};
-
-        // Remove áudio próprio
-        const selfAudio = document.getElementById('selfAudio');
-        if(selfAudio) selfAudio.remove();
-    }
+  for (let id in outgoingCalls) {
+    outgoingCalls[id].close();
+  }
+  outgoingCalls = {};
 }
+
 function playRemoteAudio(stream, id){
   let audio = document.getElementById('audio-'+id);
   if(!audio){
@@ -1018,23 +1008,35 @@ let isScreenSharing = false;
 
 function toggleScreenShare() {
   if (isScreenSharing) {
-    // Para o screenshare
     if (localStream) {
       localStream.getTracks().forEach(track => track.stop());
       localStream = null;
     }
     isScreenSharing = false;
+    // Fecha chamadas para todos
+    for (let id in users) {
+      if (outgoingCalls[id]) outgoingCalls[id].close();
+    }
   } else {
-    // Inicia o screenshare
     navigator.mediaDevices.getDisplayMedia({ video: true })
       .then(stream => {
         localStream = stream;
         isScreenSharing = true;
-        updateScreenshareTile(peer.id, stream); // Cria ou atualiza o tile
+
+        // Envia para todos
+        for (let id in users) {
+          if (id !== peer.id && peer.connections[id]) {
+            const call = peer.call(id, stream);
+            call.on('stream', remoteStream => {
+              updateScreenshareTile(id, remoteStream);
+            });
+            outgoingCalls[id] = call;
+          }
+        }
+
+        updateScreenshareTile(peer.id, stream);
       })
-      .catch(e => {
-        showCustomAlert("ScreenShare denied: " + e.message);
-      });
+      .catch(e => showCustomAlert("ScreenShare denied: " + e.message));
   }
 }
 function startVoiceCall() {
