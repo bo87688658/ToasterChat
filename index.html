@@ -25,7 +25,7 @@ button{cursor:pointer}
 .msg.other{color:#4ccfff}
 .msg img{max-width:200px;border-radius:8px;margin-top:4px;vertical-align:middle;}
 .msg .avatar{width:24px;height:24px;border-radius:50%;vertical-align:middle;margin-right:6px;}
-#inputBar{display:flex;padding:10px;border-top:1px solid var(--border);gap:6px;}
+#inputBar{display:flex;padding:10px;border-top:1px solid var(--border);gap:6px;position:relative;}
 #inputBar input{flex:1;padding:10px;border-radius:10px;border:none;outline:none;}
 #inputBar button{padding:10px 14px;border-radius:10px;border:none;background:var(--accent);color:#000;}
 #membersPanel{width:250px;background:var(--panel);border-left:1px solid var(--border);padding:10px;overflow:auto;}
@@ -42,36 +42,27 @@ button{cursor:pointer}
 #memberInfoPic{width:64px;height:64px;border-radius:50%;margin-bottom:10px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:32px;}
 #ownerActionsForMember{margin-top:10px;}
 #ownerActionsForMember button{margin:4px;}
-@keyframes fadeIn{from{opacity:0;transform:scale(.95);}to{opacity:1;transform:scale(1);} }
-@keyframes pop{to{opacity:1;transform:scale(1);} }
+#plusMenu{position:absolute;bottom:50px;left:0;background:var(--panel);border:1px solid var(--border);padding:6px;display:none;border-radius:8px;flex-direction:column;}
+#plusMenu button{margin:2px 0;}
 
-/* CUSTOM ALERT */
-#customAlert{
-  position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #ffcccc;
-  color: #900;
-  padding: 16px 24px;
-  border-radius: 12px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-  display: none;
-  opacity: 0;
-  z-index: 9999;
-  font-weight: bold;
-  text-align: center;
+/* ALERTS */
+#customAlert, #customInputAlert{
+  position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+  background: #ffcccc; color: #900; padding: 16px 24px; border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2); display: none; opacity: 0;
+  z-index: 9999; font-weight: bold; text-align: center;
   transition: opacity 0.5s, transform 0.5s;
 }
-#customAlert button{
-  margin-top: 8px;
-  padding: 6px 12px;
-  border: none;
-  border-radius: 8px;
-  background: #900;
-  color: #fff;
-  cursor: pointer;
+#customAlert button, #customInputAlert button{
+  margin-top: 8px; padding: 6px 12px; border: none; border-radius: 8px;
+  background: #900; color: #fff; cursor: pointer;
 }
+#customInputAlert input{
+  margin-top: 8px; padding: 6px 12px; border-radius: 8px; border: 1px solid #900; width: 80%;
+}
+
+@keyframes fadeIn{from{opacity:0;transform:scale(.95);}to{opacity:1;transform:scale(1);} }
+@keyframes pop{to{opacity:1;transform:scale(1);} }
 </style>
 </head>
 <body>
@@ -123,9 +114,14 @@ button{cursor:pointer}
     <div id="chatArea"></div>
     <div id="inputBar">
       <input id="msgInput" placeholder="Message">
+      <button id="plusBtn">+</button>
       <button onclick="sendMsg()">Send</button>
-      <button onclick="imgInput.click()">📷</button>
       <input type="file" id="imgInput" accept="image/*" hidden>
+      <div id="plusMenu">
+        <button id="plusImageBtn">Image</button>
+        <button id="plusEmojiBtn">Upload Emoji</button>
+        <input type="file" id="emojiUploadInput" accept="image/*" hidden>
+      </div>
     </div>
   </div>
   <div id="membersPanel"></div>
@@ -167,15 +163,24 @@ button{cursor:pointer}
   <button id="customAlertBtn">OK</button>
 </div>
 
+<!-- CUSTOM INPUT ALERT -->
+<div id="customInputAlert">
+  <span id="customInputText">Enter emoji name:</span><br>
+  <input type="text" id="customInputBox" placeholder="Emoji name">
+  <button id="customInputBtn">OK</button>
+</div>
+
 <script>
-// ------------------ VARIÁVEIS ------------------
+// ---------------- VARIABLES ----------------
 let username='', profilePic='', finalName='';
 let isHost=false, peer, conn;
 let users={}, banned=[], group={name:'',icon:'',password:''};
-let groupId='';
-let isMuted = false; // variável local do usuário
+let groupId=''; let isMuted=false;
+const defaultEmojis = {'logo':'https://ia801709.us.archive.org/0/items/566-sem-titulo-20251216114843/566%20Sem%20T%C3%ADtulo_20251216114843.png'};
+const userEmojis = {...defaultEmojis};
+let nextEmojiNumber=1;
 
-// ELEMENTOS
+// ELEMENTS
 const startMenu=document.getElementById('startMenu');
 const usernameInput=document.getElementById('usernameInput');
 const usernameBtn=document.getElementById('usernameBtn');
@@ -206,55 +211,63 @@ const ownerActionsForMember=document.getElementById('ownerActionsForMember');
 const kickBtn=document.getElementById('kickBtn');
 const banBtn=document.getElementById('banBtn');
 const muteBtn=document.getElementById('muteBtn');
+const plusBtn=document.getElementById('plusBtn');
+const plusMenu=document.getElementById('plusMenu');
+const plusImageBtn=document.getElementById('plusImageBtn');
+const plusEmojiBtn=document.getElementById('plusEmojiBtn');
+const emojiUploadInput=document.getElementById('emojiUploadInput');
 
-// ------------------ ALERTA CUSTOM ------------------
+// ---------------- ALERT FUNCTIONS ----------------
 function showCustomAlert(text){
   const alertBox=document.getElementById('customAlert');
   const alertText=document.getElementById('customAlertText');
   const alertBtn=document.getElementById('customAlertBtn');
-
   alertText.innerText=text;
   alertBox.style.display='block';
-  alertBox.style.opacity='1';
-  alertBox.style.transform='translateX(-50%) translateY(0)';
-
+  setTimeout(()=>{alertBox.style.opacity='1';},50);
   let fadeTimeout=setTimeout(()=>closeCustomAlert(),6000);
-
-  alertBtn.onclick=()=>{
-    clearTimeout(fadeTimeout);
-    closeCustomAlert();
-  }
+  alertBtn.onclick=()=>{clearTimeout(fadeTimeout);closeCustomAlert();}
 }
 function closeCustomAlert(){
   const alertBox=document.getElementById('customAlert');
   alertBox.style.opacity='0';
-  alertBox.style.transform='translateX(-50%) translateY(-20px)';
   setTimeout(()=>{alertBox.style.display='none';},500);
 }
 
-// ------------------ FUNÇÕES ------------------
-// STEP 1: USERNAME
-usernameBtn.onclick = ()=>{
-  username=usernameInput.value.trim()||'Guest';
-  finalName=username;
-  displayName.innerText=finalName;
-  startMenu.classList.add('hidden');
-  groupChoiceMenu.classList.remove('hidden');
+let customInputCallback = null;
+function showCustomInputAlert(promptText, callback){
+  const alertBox=document.getElementById('customInputAlert');
+  const inputBox=document.getElementById('customInputBox');
+  const alertText=document.getElementById('customInputText');
+  const btn=document.getElementById('customInputBtn');
+  alertText.innerText=promptText;
+  inputBox.value='';
+  alertBox.style.display='block';
+  setTimeout(()=>{alertBox.style.opacity='1';},50);
+  customInputCallback = callback;
+  btn.onclick=()=>{const value=inputBox.value.trim(); if(value){callback(value); closeCustomInputAlert();}};
+}
+function closeCustomInputAlert(){
+  const alertBox=document.getElementById('customInputAlert');
+  alertBox.style.opacity='0';
+  setTimeout(()=>{alertBox.style.display='none';},500);
 }
 
-// STEP 2: CREATE / JOIN
+// ---------------- USERNAME ----------------
+usernameBtn.onclick = ()=>{username=usernameInput.value.trim()||'Guest'; finalName=username; displayName.innerText=finalName; startMenu.classList.add('hidden'); groupChoiceMenu.classList.remove('hidden');}
+
+// ---------------- CREATE / JOIN ----------------
 createGroupBtn.onclick=()=>{groupChoiceMenu.classList.add('hidden'); createBox.classList.remove('hidden');}
 joinGroupBtn.onclick=()=>{groupChoiceMenu.classList.add('hidden'); joinBox.classList.remove('hidden');}
 function closeCreateJoin(){createBox.classList.add('hidden'); joinBox.classList.add('hidden'); groupChoiceMenu.classList.remove('hidden');}
 
-// STEP 3: CREATE GROUP
+// ---------------- CREATE GROUP ----------------
 createGroupConfirm.onclick=()=>{
   group.name=groupNameInput.value.trim()||'My Group';
   group.icon=groupIconInput.value.trim()||'';
   group.password=groupPassInput.value.trim()||'';
   isHost=true;
   groupId='group-'+Math.random().toString(36).substr(2,6);
-
   peer=new Peer(groupId,{debug:2});
   peer.on('open',id=>{
     users[id]={name:finalName,pic:profilePic,muted:false};
@@ -264,82 +277,52 @@ createGroupConfirm.onclick=()=>{
     if(group.icon) groupIconDisplay.innerHTML=`<img src="${group.icon}" style="width:32px;height:32px;border-radius:50%;">`;
     ownerCrown.style.display='inline';
     updateMembers();
-    createBox.classList.add('hidden');
-    app.style.opacity='1';
+    createBox.classList.add('hidden'); app.style.opacity='1';
   });
-  peer.on('connection',c=>{
-    c.on('data',data=>{
-      if(data.type==='join'){
-        users[c.peer]={name:data.name,pic:data.pic||'',muted:false};
-        c.send({type:'userList',users:users});
-        updateMembers();
-        sendJoinNotification(c.peer,data.name);
-      } else handleData(data);
-    });
-  });
+  peer.on('connection',c=>{c.on('data',data=>{if(data.type==='join'){users[c.peer]={name:data.name,pic:data.pic||'',muted:false}; c.send({type:'userList',users:users}); updateMembers(); sendJoinNotification(c.peer,data.name);} else handleData(data);});});
 }
 
-// STEP 4: JOIN GROUP
+// ---------------- JOIN GROUP ----------------
 joinGroupConfirm.onclick=()=>{
-  const id=groupIdInput.value.trim();
-  if(!id) return showCustomAlert('Group ID required');
+  const id=groupIdInput.value.trim(); if(!id) return showCustomAlert('Group ID required');
   const pass=joinPassInput.value.trim();
   peer=new Peer(undefined,{debug:2});
-  peer.on('open',()=>{
-    conn = peer.connect(id);
-    conn.on('open',()=>{
-      conn.send({type:'join',name:finalName,pic:profilePic,password:pass});
-      users[peer.id]={name:finalName,pic:profilePic,muted:false};
-      myNameDisplay.innerText = finalName;
-      joinBox.classList.add('hidden');
-      app.style.opacity='1';
-    });
-    conn.on('data',handleData);
-  });
+  peer.on('open',()=>{conn = peer.connect(id); conn.on('open',()=>{conn.send({type:'join',name:finalName,pic:profilePic,password:pass}); users[peer.id]={name:finalName,pic:profilePic,muted:false}; myNameDisplay.innerText=finalName; joinBox.classList.add('hidden'); app.style.opacity='1';}); conn.on('data',handleData);});
   peer.on('connection',handlePeerConnection);
 }
 
-// HANDLE DATA
+// ---------------- HANDLE DATA ----------------
 function handleData(data){
   switch(data.type){
     case 'userList': users=data.users; updateMembers(); break;
     case 'msg': if(!isMuted) addMsg(data.name,data.text,false,data.pic); break;
     case 'img': if(!isMuted) addImg(data.name,data.data,false,data.pic); break;
     case 'shutdown': showCustomAlert('Server shutdown'); setTimeout(()=>location.reload(),6000); break;
-    case 'mute':
-      if(data.targetId === peer.id){
-        isMuted = data.mute;
-        if(isMuted){msgInput.value = "You're muted."; msgInput.disabled = true;}
-        else{msgInput.value=''; msgInput.disabled=false;}
-      }
-      break;
+    case 'mute': if(data.targetId===peer.id){isMuted=data.mute; if(isMuted){msgInput.value="You're muted."; msgInput.disabled=true;} else{msgInput.value=''; msgInput.disabled=false;}} break;
+    case 'avatarChange': if(users[data.id]){users[data.id].pic=data.pic; updateMembers();} break;
   }
 }
 
-// ADD MSG / IMG
+// ---------------- MSG / IMG ----------------
 function addMsg(name,text,me,pic=''){
-  const div=document.createElement('div');
-  div.className='msg '+(me?'me':'other');
+  for(let emoji in userEmojis){text=text.replaceAll(`:${emoji}:`,`<img src="${userEmojis[emoji]}" style="width:24px;height:24px;">`);}
+  const div=document.createElement('div'); div.className='msg '+(me?'me':'other');
   let imgHTML=pic?`<img src="${pic}" class="avatar">`: '';
   div.innerHTML=`${imgHTML}<span>${name}</span>: ${text}`;
-  chatArea.appendChild(div);
-  chatArea.scrollTop=chatArea.scrollHeight;
+  chatArea.appendChild(div); chatArea.scrollTop=chatArea.scrollHeight;
 }
 function addImg(name,src,me,pic=''){
-  const div=document.createElement('div');
-  div.className='msg '+(me?'me':'other');
+  const div=document.createElement('div'); div.className='msg '+(me?'me':'other');
   let imgHTML=pic?`<img src="${pic}" class="avatar">`:'';
   div.innerHTML=`${imgHTML}<span>${name}</span><br><img src="${src}">`;
-  chatArea.appendChild(div);
-  chatArea.scrollTop=chatArea.scrollHeight;
+  chatArea.appendChild(div); chatArea.scrollTop=chatArea.scrollHeight;
 }
 
-// ------------------ MEMBROS ------------------
+// ---------------- MEMBERS ----------------
 function updateMembers(){
   membersPanel.innerHTML='';
   for(let id in users){
-    const div=document.createElement('div');
-    div.className='member';
+    const div=document.createElement('div'); div.className='member';
     let avatarHTML='';
     if(users[id].pic){avatarHTML=`<img src="${users[id].pic}">`;}
     else{
@@ -354,52 +337,37 @@ function updateMembers(){
   }
 }
 
+// ---------------- MEMBER INFO ----------------
 function showMemberInfo(id){
-  const user=users[id];
-  memberInfoPic.innerHTML=''; memberInfoPic.style.background=''; memberInfoPic.style.color='';
+  const user=users[id]; memberInfoPic.innerHTML=''; memberInfoPic.style.background=''; memberInfoPic.style.color='';
   memberInfoPic.style.display='flex'; memberInfoPic.style.alignItems='center'; memberInfoPic.style.justifyContent='center';
   memberInfoPic.style.fontWeight='bold'; memberInfoPic.style.fontSize='32px';
-
-  if(user.pic){
-    const img=document.createElement('img');
-    img.src=user.pic; img.style.width='64px'; img.style.height='64px'; img.style.borderRadius='50%';
-    memberInfoPic.appendChild(img);
-  } else {
-    const colors=['#FF4500','#FF8C00','#FFD700','#32CD32','#1E90FF','#BA55D3','#FF69B4'];
-    const color=colors[id.charCodeAt(0)%colors.length];
-    const letter=user.name[0].toUpperCase();
-    memberInfoPic.style.background=color; memberInfoPic.style.color='#fff'; memberInfoPic.innerText=letter;
-  }
-
+  if(user.pic){const img=document.createElement('img'); img.src=user.pic; img.style.width='64px'; img.style.height='64px'; img.style.borderRadius='50%'; memberInfoPic.appendChild(img);}
+  else{const colors=['#FF4500','#FF8C00','#FFD700','#32CD32','#1E90FF','#BA55D3','#FF69B4']; const color=colors[id.charCodeAt(0)%colors.length]; memberInfoPic.style.background=color; memberInfoPic.style.color='#fff'; memberInfoPic.innerText=user.name[0].toUpperCase();}
   memberInfoName.innerText=user.name;
-
-  if(isHost && id!==peer.id){
-    ownerActionsForMember.classList.remove('hidden');
+  if(isHost && id!==peer.id){ownerActionsForMember.classList.remove('hidden');
     kickBtn.onclick=()=>{kick(id); closeMemberInfo();};
     banBtn.onclick=()=>{banUser(id); closeMemberInfo();};
     muteBtn.onclick=()=>{
-      const targetMuted = !users[id].muted;
-      users[id].muted = targetMuted;
-      if(peer.connections[id]){
-        peer.connections[id].forEach(c=>c.send({type:'mute',mute:targetMuted,targetId:id}));
-      }
+      const targetMuted=!users[id].muted;
+      users[id].muted=targetMuted;
+      if(peer.connections[id]){peer.connections[id].forEach(c=>c.send({type:'mute',mute:targetMuted,targetId:id}));}
     };
   } else ownerActionsForMember.classList.add('hidden');
-
   memberInfoPanel.classList.add('visible');
 }
 function closeMemberInfo(){memberInfoPanel.classList.remove('visible');}
 
-// ------------------ OWNER ------------------
+// ---------------- OWNER ----------------
 function toggleOwnerMenu(){ownerMenu.style.display = ownerMenu.style.display==='block'?'none':'block';}
 function kick(id){if(isHost && peer.connections[id]){peer.connections[id].forEach(c=>c.send({type:'shutdown'})); delete users[id]; updateMembers();}}
 function banUser(id){banned.push(id); kick(id);}
 function shutdownGroup(){if(isHost) broadcast({type:'shutdown'}); showCustomAlert('Server shutdown');}
 
-// ------------------ BROADCAST ------------------
+// ---------------- BROADCAST ----------------
 function broadcast(data){for(let id in users){if(id!==peer.id && peer.connections[id]){peer.connections[id].forEach(c=>c.send(data));}}}
 
-// ------------------ SETTINGS ------------------
+// ---------------- SETTINGS ----------------
 function openSettings(){settings.style.display='flex'}
 function closeSettings(){settings.style.display='none'}
 function toggleTheme(){document.body.classList.toggle('light')}
@@ -407,19 +375,13 @@ document.getElementById('profileUpload').addEventListener('change',e=>{
   const file=e.target.files[0]; if(!file) return;
   const reader=new FileReader();
   reader.onload=()=>{
-    profilePic=reader.result;
-    users[peer.id].pic=profilePic;
-    updateMembers();
-    if(memberInfoPanel.classList.contains('visible') && memberInfoName.innerText===users[peer.id].name){
-      memberInfoPic.innerHTML='';
-      const img=document.createElement('img'); img.src=profilePic; img.style.width='64px'; img.style.height='64px'; img.style.borderRadius='50%';
-      memberInfoPic.appendChild(img);
-    }
+    profilePic=reader.result; users[peer.id].pic=profilePic; updateMembers();
+    broadcast({type:'avatarChange',id:peer.id,pic:profilePic});
   }
   reader.readAsDataURL(file);
 });
 
-// ------------------ JOIN NOTIFICATIONS ------------------
+// ---------------- JOIN NOTIFICATIONS ----------------
 function sendJoinNotification(id,name){
   const messages=[`@${name} just came here!`,`Welcome, @${name}!`,`Hey guys, a new guy came here!`];
   const msg=messages[Math.floor(Math.random()*messages.length)];
@@ -428,37 +390,39 @@ function sendJoinNotification(id,name){
   else if(conn) conn.send({type:'msg',name:'System',text:msg,pic:''});
 }
 
-// ------------------ SEND MSG ------------------
+// ---------------- SEND MSG ----------------
 function sendMsg(){
   if(isMuted){msgInput.value="You're muted."; return;}
-  const txt=msgInput.value.trim(); const file=imgInput.files[0];
+  let txt=msgInput.value.trim(); const file=imgInput.files[0];
   if(!txt && !file) return;
-
-  if(txt){
-    addMsg(finalName,txt,true,profilePic);
-    const data={type:'msg',name:finalName,text:txt,pic:profilePic};
-    if(isHost) broadcast(data); else if(conn) conn.send(data);
-  }
-  if(file){
-    const reader=new FileReader();
-    reader.onload=()=>{
-      addImg(finalName,reader.result,true,profilePic);
-      const data={type:'img',name:finalName,data:reader.result,pic:profilePic};
-      if(isHost) broadcast(data); else if(conn) conn.send(data);
-    };
-    reader.readAsDataURL(file); imgInput.value='';
-  }
+  if(txt){addMsg(finalName,txt,true,profilePic); const data={type:'msg',name:finalName,text:txt,pic:profilePic}; if(isHost) broadcast(data); else if(conn) conn.send(data);}
+  if(file){const reader=new FileReader(); reader.onload=()=>{addImg(finalName,reader.result,true,profilePic); const data={type:'img',name:finalName,data:reader.result,pic:profilePic}; if(isHost) broadcast(data); else if(conn) conn.send(data);}; reader.readAsDataURL(file); imgInput.value='';}
   msgInput.value='';
 }
 
-// ------------------ PEER CONNECTION ------------------
+// ---------------- PLUS MENU ----------------
+plusBtn.onclick=()=>{plusMenu.style.display = plusMenu.style.display==='flex'?'none':'flex';}
+plusImageBtn.onclick=()=>{imgInput.click();}
+plusEmojiBtn.onclick=()=>{emojiUploadInput.click();}
+
+// ---------------- EMOJI UPLOAD ----------------
+emojiUploadInput.addEventListener('change', e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    showCustomInputAlert('Enter custom emoji name:', (name)=>{
+      if(name){userEmojis[name]=reader.result; showCustomAlert(`Emoji :${name}: created!`);}
+    });
+  }
+  reader.readAsDataURL(file);
+});
+
+// ---------------- PEER CONNECTION ----------------
 function handlePeerConnection(c){c.on('data',handleData);}
 
-// ------------------ ESCAPE SETTINGS ------------------
+// ---------------- ESC ----------------
 settings.addEventListener('click',e=>{if(e.target===settings)closeSettings();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSettings();});
 </script>
-
 </body>
 </html>
-
