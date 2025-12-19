@@ -134,10 +134,25 @@ button{cursor:pointer}
   </div>
   <div id="membersPanel"></div>
   <div id="ownerMenu">
-    <h4>Owner Menu</h4>
-    <div>ID: <span id="ownerGroupID"></span></div>
-    <div id="ownerActions"></div>
-    <button onclick="shutdownGroup()">Shutdown Group</button>
+  <h4>Owner Menu</h4>
+
+  <label>Group ID</label>
+  <input id="ownerEditGroupId" placeholder="New Group ID">
+
+  <label>Group Name</label>
+  <input id="ownerEditGroupName" placeholder="New Group Name">
+
+  <label>Group Password</label>
+  <input id="ownerEditGroupPass" placeholder="New Password">
+
+  <label>Group Icon URL</label>
+  <input id="ownerEditGroupIcon" placeholder="New Icon URL">
+
+  <div style="margin-top:6px;font-size:12px">
+    Current ID: <span id="ownerGroupID"></span>
+  </div>
+<button onclick="applyOwnerChanges()">Apply</button>
+<button onclick="shutdownGroup()">Shutdown Group</button>
   </div>
 </div>
 
@@ -188,6 +203,17 @@ const defaultEmojis = {'logo':'https://ia801709.us.archive.org/0/items/566-sem-t
 const userEmojis = {...defaultEmojis};
 let nextEmojiNumber=1;
 
+// ---------------- SAFE DOM ----------------
+function setTextSafe(id, value){
+  const el = document.getElementById(id);
+  if(el) el.innerText = value;
+}
+
+function setHTMLSafe(id, html){
+  const el = document.getElementById(id);
+  if(el) el.innerHTML = html;
+}
+
 // ---------------- SOUNDS ----------------
 function PlaySound(url){
   const audio = new Audio(url);
@@ -236,6 +262,11 @@ const plusMenu=document.getElementById('plusMenu');
 const plusImageBtn=document.getElementById('plusImageBtn');
 const plusEmojiBtn=document.getElementById('plusEmojiBtn');
 const emojiUploadInput=document.getElementById('emojiUploadInput');
+const ownerEditGroupId = document.getElementById('ownerEditGroupId');
+const ownerEditGroupName = document.getElementById('ownerEditGroupName');
+const ownerEditGroupPass = document.getElementById('ownerEditGroupPass');
+const ownerEditGroupIcon = document.getElementById('ownerEditGroupIcon');
+
 
 // ---------------- ALERT FUNCTIONS ----------------
 function showCustomAlert(text){
@@ -302,9 +333,9 @@ createGroupConfirm.onclick=()=>{
   peer=new Peer(groupId,{debug:2});
   peer.on('open',id=>{
     users[id]={name:finalName,pic:profilePic,muted:false};
-    myNameDisplay.innerText=finalName;
-    groupNameDisplay.innerText=group.name;
-    ownerGroupID.innerText=groupId;
+    setTextSafe('myNameDisplay', finalName);
+    setTextSafe('groupNameDisplay', group.name);
+    setTextSafe('ownerGroupID', groupId);
     if(group.icon) groupIconDisplay.innerHTML=`<img src="${group.icon}" style="width:32px;height:32px;border-radius:50%;">`;
     ownerCrown.style.display='inline';
     updateMembers();
@@ -344,12 +375,61 @@ joinGroupConfirm.onclick=()=>{
 // ---------------- HANDLE DATA ----------------
 function handleData(data){
   switch(data.type){
-    case 'userList': users=data.users; updateMembers(); break;
+        case 'userList':
+      users = data.users;
+      if(data.group){
+        group = data.group;
+        setTextSafe('groupNameDisplay', group.name);
+        setHTMLSafe(
+          'groupIconDisplay',
+          group.icon
+            ? `<img src="${group.icon}" style="width:32px;height:32px;border-radius:50%;">`
+            : ''
+        );
+      }
+      updateMembers();
+    break;
     case 'msg': if(!isMuted){addMsg(data.name,data.text,false,data.pic);} break;
     case 'img': if(!isMuted){addImg(data.name,data.data,false,data.pic);} break;
     case 'shutdown': showCustomAlert('Server shutdown'); setTimeout(()=>location.reload(),6000); break;
     case 'mute': if(data.targetId===peer.id){isMuted=data.mute; if(isMuted){msgInput.value="You're muted."; msgInput.disabled=true;} else{msgInput.value=''; msgInput.disabled=false;}} break;
-    case 'avatarChange': if(users[data.id]){users[data.id].pic=data.pic; updateMembers();} break;
+    case 'avatarChange': if(users[data.id]){users[data.id].pic=data.pic; updateMembers();} break;case 'groupUpdate':
+  group.name = data.name;
+  group.password = data.password;
+  group.icon = data.icon;
+
+  setTextSafe('groupNameDisplay', group.name);
+  setHTMLSafe(
+    'groupIconDisplay',
+    group.icon
+      ? `<img src="${group.icon}" style="width:32px;height:32px;border-radius:50%;">`
+      : ''
+  );
+break;
+    case 'redirect':
+    peer.destroy();
+
+    groupId = data.newId;
+    group = {
+      name: data.name,
+      icon: data.icon,
+      password: data.password
+    };
+
+    peer = new Peer(undefined,{debug:2});
+    peer.on('open', ()=>{
+      conn = peer.connect(groupId);
+      conn.on('open', ()=>{
+        conn.send({
+          type:'join',
+          name: finalName,
+          pic: profilePic,
+          password: group.password
+        });
+      });
+      conn.on('data', handleData);
+    });
+break;
   }
 }
 
@@ -441,7 +521,107 @@ function toggleOwnerMenu(){ownerMenu.style.display = ownerMenu.style.display==='
 function kick(id){if(isHost && peer.connections[id]){peer.connections[id].forEach(c=>c.send({type:'shutdown'})); delete users[id]; updateMembers();}}
 function banUser(id){banned.push(id); kick(id);}
 function shutdownGroup(){if(isHost) broadcast({type:'shutdown'}); showCustomAlert('Server shutdown');}
+function applyOwnerChanges(){
+  if(!isHost) return;
 
+  const newId = ownerEditGroupId.value.trim();
+  const newName = ownerEditGroupName.value.trim();
+  const newPass = ownerEditGroupPass.value.trim();
+  const newIcon = ownerEditGroupIcon.value.trim();
+
+  if(newName){
+    group.name = newName;
+    setTextSafe('groupNameDisplay', group.name);
+  }
+
+  if(newPass){
+    group.password = newPass;
+  }
+
+  if(newIcon){
+    group.icon = newIcon;
+    setHTMLSafe(
+      'groupIconDisplay',
+      `<img src="${group.icon}" style="width:32px;height:32px;border-radius:50%;">`
+    );
+  }
+
+  broadcast({
+    type:'groupUpdate',
+    name:group.name,
+    password:group.password,
+    icon:group.icon
+  });
+
+  if(newId && newId !== groupId){
+    recreateGroupWithNewId(newId);
+  }
+
+  showCustomAlert('Group updated');
+}
+function recreateGroupWithNewId(newId){
+  if(!isHost) return;
+
+  const oldUsers = {...users};
+
+  broadcast({
+    type:'redirect',
+    newId:newId,
+    name:group.name,
+    password:group.password,
+    icon:group.icon
+  });
+
+  // fecha peer antigo
+  peer.destroy();
+
+  users = {};
+  groupId = newId;
+
+  peer = new Peer(groupId,{debug:2});
+
+  peer.on('open', id=>{
+    // re-registra o host
+    users[id] = {
+      name: finalName,
+      pic: profilePic,
+      muted: false
+    };
+
+    setTextSafe('ownerGroupID', groupId);
+    updateMembers();
+  });
+
+  peer.on('connection', c=>{
+    c.on('data', data=>{
+      if(data.type === 'join'){
+        // 🔐 valida senha
+        if(group.password && data.password !== group.password){
+          c.send({type:'shutdown'});
+          c.close();
+          return;
+        }
+
+        users[c.peer] = {
+          name: data.name,
+          pic: data.pic || '',
+          muted: false
+        };
+
+        c.send({
+          type:'userList',
+          users: users,
+          group: group
+        });
+
+        updateMembers();
+        sendJoinNotification(c.peer, data.name);
+      }else{
+        handleData(data);
+      }
+    });
+  });
+}
 // ---------------- BROADCAST ----------------
 function broadcast(data){for(let id in users){if(id!==peer.id && peer.connections[id]){peer.connections[id].forEach(c=>c.send(data));}}}
 
