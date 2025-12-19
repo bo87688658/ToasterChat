@@ -751,43 +751,43 @@ let isVoiceOn = false;
 let mutedUsers = {}; // ID: true/false
 
 function toggleVoice(id){
-    if(id !== peer.id) return; // só o dono do tile pode ativar
+    if(id !== peer.id) return;
 
     if(isVoiceOn) stopVoice();
     else startVoice();
 }
 
 function startVoice() {
-    if(localAudioStream) return; // já ativo
+    if(localAudioStream) return;
 
     navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(stream => {
-            localAudioStream = stream;
-            isVoiceOn = true;
-            updateVoiceIcon(peer.id);
+    .then(stream => {
+        localAudioStream = stream;
+        isVoiceOn = true;
+        updateVoiceIcon(peer.id);
 
-            // Reproduz a própria voz **somente agora**
-            let selfAudio = document.getElementById('selfAudio');
-            if(!selfAudio){
-                selfAudio = document.createElement('audio');
-                selfAudio.id = 'selfAudio';
-                selfAudio.autoplay = true;
-                selfAudio.muted = false; // importante!
-                document.body.appendChild(selfAudio);
-            }
-            selfAudio.srcObject = stream;
+        // Cria elemento de áudio da própria voz
+        let selfAudio = document.getElementById('selfAudio');
+        if(!selfAudio){
+            selfAudio = document.createElement('audio');
+            selfAudio.id = 'selfAudio';
+            selfAudio.autoplay = true;
+            selfAudio.muted = false; // ouvir a própria voz
+            document.body.appendChild(selfAudio);
+        }
+        selfAudio.srcObject = stream;
 
-            // Chama todos os usuários conectados
-            for(let id in users){
-                if(id !== peer.id && peer.connections[id]){
-                    const call = peer.call(id, stream);
-                    outgoingCalls[id] = call;
-                    call.on('stream', remoteStream => playRemoteAudio(remoteStream, id));
-                    call.on('close', () => delete outgoingCalls[id]);
-                }
+        // Chama todos os usuários conectados
+        for(let id in users){
+            if(id !== peer.id && peer.connections[id]){
+                const call = peer.call(id, stream);
+                outgoingCalls[id] = call;
+                call.on('stream', remoteStream => playRemoteAudio(remoteStream, id));
+                call.on('close', () => delete outgoingCalls[id]);
             }
-        })
-        .catch(err => showCustomAlert("Microphone denied: " + err.message));
+        }
+    })
+    .catch(err => showCustomAlert("Microphone denied: " + err.message));
 }
 
 function stopVoice() {
@@ -805,12 +805,9 @@ function stopVoice() {
 
         // Remove áudio próprio
         const selfAudio = document.getElementById('selfAudio');
-        if(selfAudio){
-            selfAudio.remove();
-        }
+        if(selfAudio) selfAudio.remove();
     }
 }
-
 function playRemoteAudio(stream, id){
   let audio = document.getElementById('audio-'+id);
   if(!audio){
@@ -917,14 +914,14 @@ function muteUserVoice(id, mute){
 
 // Atualiza botão Voice nos tiles
 function updateVoiceIcon(id){
-  const tile = document.getElementById('tile-'+id);
-  if(tile){
-    const btn = tile.querySelector('.voiceBtn');
-    if(btn){
-      btn.innerText = (id===peer.id && isVoiceOn) ? '🔊' : '🔇';
+    const tile = document.getElementById('tile-'+id);
+    if(tile){
+        const btn = tile.querySelector('.voiceBtn');
+        if(btn){
+            btn.innerText = (id===peer.id && isVoiceOn) ? '🔊' : '🔇';
+        }
     }
   }
-}
 // ---------------- ATUALIZA O RETÂNGULO ----------------
 function updateScreenshareTile(id, stream){
   if(!stream) return; // ❌ se não houver stream, não cria tile
@@ -959,7 +956,7 @@ function updateScreenshareTile(id, stream){
     // Voice button
     const voiceBtn = document.createElement('button');
     voiceBtn.className = 'voiceBtn';
-    btn.innerText = (id===peer.id && isVoiceOn) ? '🔊' : '🔇';
+    voiceBtn.innerText = isVoiceOn && id===peer.id ? '🔇' : '🔊';
     voiceBtn.onclick = ()=>toggleVoice(id);
     tile.appendChild(voiceBtn);
 
