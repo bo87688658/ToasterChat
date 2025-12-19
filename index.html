@@ -424,15 +424,29 @@ peer.on('call', call => {
 // ---------------- JOIN GROUP ----------------
 joinGroupConfirm.onclick = () => {
   PlaySound(soundBtnClick);
+
   const id = groupIdInput.value.trim();
   if(!id) return showCustomAlert('Group ID required');
   const pass = joinPassInput.value.trim();
 
-  peer = new Peer(undefined,{debug:2});
+  // 1️⃣ Criar peer
+  peer = new Peer(undefined, {debug: 2});
 
-  peer.on('open', ()=>{
+  // 2️⃣ Registrar listener de erro **imediatamente depois de criar o peer**
+  peer.on('error', (err) => {
+    console.log('Peer error:', err);
+    showCustomAlert('Peer error: ' + err);
+  });
+
+  // 3️⃣ Registrar evento open
+  peer.on('open', () => {
+    console.log('Peer opened with id:', peer.id); // ✅ debug
+
     conn = peer.connect(id);
-    conn.on('open', ()=>{
+
+    // 4️⃣ Listener para quando a conexão abrir
+    conn.on('open', () => {
+      console.log('Connected to host'); // ✅ debug
       // envia join com senha
       conn.send({type:'join', name: finalName, pic: profilePic, password: pass});
       users[peer.id] = {name: finalName, pic: profilePic, muted: false};
@@ -440,7 +454,9 @@ joinGroupConfirm.onclick = () => {
       joinBox.classList.add('hidden');
       app.style.opacity='1';
     });
-    conn.on('data', (data)=>{
+
+    // 5️⃣ Listener para receber dados
+    conn.on('data', (data) => {
       if(data.type === 'userList'){
         users = data.users;
         if(data.group){
@@ -459,10 +475,12 @@ joinGroupConfirm.onclick = () => {
     });
   });
 
-  peer.on('connection', c=>{
+  // 6️⃣ Listener para conexões entrantes
+  peer.on('connection', c => {
     handlePeerConnection(c);
   });
 };
+
 // ---------------- HANDLE DATA ----------------
 function handleData(data){
   switch(data.type){
