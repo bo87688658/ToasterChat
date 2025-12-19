@@ -944,11 +944,23 @@ function updateScreenshareTile(id, stream){
       const closeBtn = document.createElement('button');
       closeBtn.className = 'closeBtn';
       closeBtn.innerText = 'X';
-      closeBtn.onclick = ()=>{
-        stopLocalStream();
+closeBtn.onclick = () => {
+    // Para áudio
+    if(localAudioStream){
+        localAudioStream.getTracks().forEach(track => track.stop());
+        localAudioStream = null;
         isVoiceOn = false;
-        tile.remove(); // remove o retângulo
-      };
+        updateVoiceIcon(peer.id);
+    }
+    // Para vídeo / screenshare
+    if(localVideoStream){
+        localVideoStream.getTracks().forEach(track => track.stop());
+        localVideoStream = null;
+        isScreenSharing = false;
+    }
+
+    tile.remove();
+};
       tile.appendChild(closeBtn);
     }
 
