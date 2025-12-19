@@ -756,26 +756,37 @@ function toggleVoice(id){
 }
 
 function startVoice() {
-  if(localAudioStream) return; // já ativo
-  navigator.mediaDevices.getUserMedia({ audio: true })
-    .then(stream => {
-      localAudioStream = stream;
-      isVoiceOn = true;
-      updateVoiceIcon(peer.id);
+    if(localAudioStream) return; // já ativo
 
-      // chamar cada usuário conectado
-      for(let id in users){
-        if(id !== peer.id && peer.connections[id]){
-          const call = peer.call(id, stream);
-          outgoingCalls[id] = call;
-          call.on('stream', remoteStream => playRemoteAudio(remoteStream, id));
-          call.on('close', ()=> delete outgoingCalls[id]);
-        }
-      }
-    })
-    .catch(err => showCustomAlert("Microphone denied: " + err.message));
+    navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+            localAudioStream = stream;
+            isVoiceOn = true;
+            updateVoiceIcon(peer.id);
+
+            // Reproduz sua própria voz
+            let selfAudio = document.getElementById('selfAudio');
+            if(!selfAudio){
+                selfAudio = document.createElement('audio');
+                selfAudio.id = 'selfAudio';
+                selfAudio.autoplay = true;
+                selfAudio.muted = false; // importante!
+                document.body.appendChild(selfAudio);
+            }
+            selfAudio.srcObject = stream;
+
+            // chama cada usuário conectado
+            for(let id in users){
+                if(id !== peer.id && peer.connections[id]){
+                    const call = peer.call(id, stream);
+                    outgoingCalls[id] = call;
+                    call.on('stream', remoteStream => playRemoteAudio(remoteStream, id));
+                    call.on('close', ()=> delete outgoingCalls[id]);
+                }
+            }
+        })
+        .catch(err => showCustomAlert("Microphone denied: " + err.message));
 }
-
 function stopVoice(){
   if(localAudioStream){
     localAudioStream.getTracks().forEach(track => track.stop());
@@ -821,10 +832,22 @@ function updateScreenshareTile(id, videoStream=null){
       const closeBtn = document.createElement('button');
       closeBtn.className = 'closeBtn';
       closeBtn.innerText = 'X';
-      closeBtn.onclick = () => {
-        stopScreenShare();
-        stopVoice();
-        tile.remove();
+      closeBtn.onclick = ()=>{
+          // Para áudio
+          if(localAudioStream){
+              localAudioStream.getTracks().forEach(track => track.stop());
+              localAudioStream = null;
+              isVoiceOn = false;
+          }
+
+          // Para vídeo/screen share
+          if(localVideoStream){
+              localVideoStream.getTracks().forEach(track => track.stop());
+              localVideoStream = null;
+              isScreenSharing = false;
+          }
+
+          tile.remove();
       };
       tile.appendChild(closeBtn);
     }
