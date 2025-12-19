@@ -134,25 +134,19 @@ button{cursor:pointer}
   </div>
   <div id="membersPanel"></div>
   <div id="ownerMenu">
-  <h4>Owner Menu</h4>
+    <h4>Owner Menu</h4>
 
-  <label>Group ID</label>
-  <input id="ownerEditGroupId" placeholder="New Group ID">
+    <input id="ownerEditGroupId" placeholder="New Group ID">
+    <input id="ownerEditGroupName" placeholder="New Group Name">
+    <input id="ownerEditGroupPass" placeholder="New Password">
+    <input id="ownerEditGroupIcon" placeholder="New Icon URL">
 
-  <label>Group Name</label>
-  <input id="ownerEditGroupName" placeholder="New Group Name">
+    <div style="margin-top:6px;font-size:12px">
+      Current ID: <span id="ownerGroupID"></span>
+    </div>
 
-  <label>Group Password</label>
-  <input id="ownerEditGroupPass" placeholder="New Password">
-
-  <label>Group Icon URL</label>
-  <input id="ownerEditGroupIcon" placeholder="New Icon URL">
-
-  <div style="margin-top:6px;font-size:12px">
-    Current ID: <span id="ownerGroupID"></span>
-  </div>
-<button onclick="applyOwnerChanges()">Apply</button>
-<button onclick="shutdownGroup()">Shutdown Group</button>
+    <button onclick="applyOwnerChanges()">Apply</button>
+    <button onclick="shutdownGroup()">Shutdown Group</button>
   </div>
 </div>
 
