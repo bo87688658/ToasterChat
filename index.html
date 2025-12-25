@@ -1,1112 +1,1022 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>ToasterChat</title>
+<title>ToasterChat P2P</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
 <style>
-.screenshareTile {
-  position: relative;
-  width: 200px;
-  height: 150px;
-  background: var(--panel);
-  border-radius: 10px;
+:root{
+  --bg:#0b0b12;
+  --panel:#111;
+  --accent:#ffb703;
+}
+
+*{
+  box-sizing:border-box;
+  margin:0;
+  padding:0;
+}
+
+body {
+  font-family: "Jost", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  height: 100vh;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* ===== SCREENS ===== */
+#screen {
+  height: 100vh;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
-  color: #fff;
-  font-weight: bold;
-  font-size: 18px;
 }
 
-.screenshareTile video,
-.screenshareTile img,
-.screenshareTile .letterTile {
+.card{
+  background:#111;
+  padding:20px;
+  width:320px;
+  border-radius:12px;
+}
+
+.hidden{display:none}
+
+/* CHAT */
+#app {
+  display: none; /* começa escondido */
+}
+
+#app.active {
+  display: flex;
+  position: fixed;       /* fullscreen quando ativo */
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  flex-direction: column;
+  background: var(--bg);
+  z-index: 1;
 }
 
-.closeBtn, .voiceBtn {
-  position: absolute;
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: 6px;
+.topbar {
+  height: 48px;
+  background: #111;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  flex-shrink: 0;
+}
+
+.main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 220px;
+  background: #111;
+  padding: 10px;
+  overflow-y: auto;
+}
+
+.chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.msg {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #222;
+}
+
+.msg-content {
+  flex: 1;
+}
+
+.msg-user {
+  font-weight: bold;
+  font-size: 13px;
+}
+
+.msg:hover {
+  background: #1a1a22;
+}
+
+.reply-box {
+  font-size: 12px;
+  opacity: .7;
+  border-left: 3px solid var(--accent);
+  padding-left: 6px;
+  margin-bottom: 4px;
   cursor: pointer;
-  z-index: 10;
+}
+
+.input {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  background: #111;
+}
+
+input, button {
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+}
+
+button {
+  cursor: pointer;
+  background: var(--accent);
+}
+
+input {
+  width: 100%;
+}
+
+/* ===== CHANNEL ===== */
+.channel {
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+}
+.channel.active {
+  background: #1a1a22;
+}
+
+/* ===== SETTINGS & MODALS ===== */
+#settings{
+  position:fixed;
+  inset:0;
+  background:#000;
+  z-index:10;
+  display:none;
+}
+.settings-panel{padding:20px}
+
+.modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.7);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:999;
+}
+.modal-box{
+  background:#111;
+  padding:20px;
+  width:360px;
+  border-radius:14px;
+}
+.modal-box h3{margin-bottom:10px}
+.modal-box p{font-size:14px;opacity:.8;margin-bottom:10px}
+.modal-box input, .modal-box textarea{
+  width:100%;
+  background:#0b0b12;
+  color:#0f0;
+  font-family:monospace;
+}
+.modal-actions{
+  display:flex;
+  gap:8px;
+  margin-top:12px;
+}
+.modal-actions button{
+  flex:1;
+}
+
+/* Força todos os textos dentro do chat para branco */
+#app, #app * {
+  color: #fff;
+}
+
+/* Barra de reply acima do input */
+.replying-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #222;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-left: 4px solid var(--accent);
+}
+
+.replying-bar span {
+  color: #fff;
+}
+
+.replying-bar button {
+  background: transparent;
+  border: none;
+  color: #ff6b6b;
+  cursor: pointer;
+  font-weight: bold;
+}
+body, #app, #screen {
+  color: #fff; /* branco apenas para textos normais */
+}
+input, textarea {
+  color: #000000; /* texto do usuário dentro do input */
+  background: #ffffff; /* fundo escuro */
+}
+
+input::placeholder, textarea::placeholder {
+  color: #ccc; /* placeholder mais claro */
+}
+.chat .input {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  background: #111; /* fundo escuro */
+}
+
+.chat .input input {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  border: none;
+  background: #fff; /* fundo do input */
+  color: #000;      /* texto dentro do input */
+}
+
+.chat .input input::placeholder {
+  color: #888; /* placeholder mais claro */
+}
+
+.chat .input button {
+  color: #000;      /* texto preto */
+  /* mantém todas as outras propriedades */
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent); /* mantém a cor de fundo */
+  cursor: pointer;
+}
+
+/* ===== FIX INPUT E BOTÃO SEND ===== */
+.chat .input input {
+  background: #ffffff !important;
+  color: #000000 !important;
+}
+
+.chat .input input::placeholder {
+  color: #666 !important;
+}
+
+.chat .input button {
+  background: var(--accent);
+  color: #000000 !important;
   font-weight: bold;
 }
 
-.closeBtn {
-  top: 4px;
-  right: 4px;
-  background: rgba(255,0,0,0.8);
-  color: #fff;
+input,
+textarea,
+button {
+  font-family: "Jost", system-ui, sans-serif;
+}
+.hidden {
+  display: none !important;
 }
 
-.voiceBtn {
-  top: 4px;
-  left: 4px;
-  background: rgba(0,150,0,0.8);
-  color: #fff;
-}
-:root{--bg:#0e0e0e;--panel:#161616;--border:#333;--accent:#4ccfff;--text:#fff;}
-body.light{--bg:#f4f6fb;--panel:#fff;--border:#ccc;--accent:#0077ff;--text:#000;}
-*{box-sizing:border-box;font-family:'Inter',sans-serif;}
-body{margin:0;background:var(--bg);color:var(--text);display:flex;justify-content:center;align-items:flex-start;height:100vh;transition:.3s;}
-button{cursor:pointer}
-.hidden{display:none;opacity:0;transition:.3s;}
-.visible{opacity:1;transition:.3s;}
-#startMenu,#groupChoiceMenu,#createBox,#joinBox{margin-top:40px;background:var(--panel);padding:24px;border-radius:14px;width:320px;text-align:center;animation:fadeIn .5s;}
-#startMenu input,#groupChoiceMenu button,#createBox input,#createBox button,#joinBox input,#joinBox button{width:100%;margin-top:10px;padding:10px;border-radius:10px;border:none;}
-#app{display:flex;width:900px;height:600px;margin-top:20px;border-radius:12px;overflow:hidden;background:var(--panel);opacity:0;transition:.5s;}
-#chatContainer{flex:1;display:flex;flex-direction:column;position:relative;}
-#topBar{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--border);}
-#chatArea{flex:1;overflow:auto;padding:10px;background:var(--bg);}
-.msg{transform:scale(.8);opacity:0;margin-bottom:8px;animation:pop .25s forwards;}
-.msg.me{color:#4cff4c}
-.msg.other{color:#4ccfff}
-.msg img{max-width:200px;border-radius:8px;margin-top:4px;vertical-align:middle;}
-.msg .avatar{width:24px;height:24px;border-radius:50%;vertical-align:middle;margin-right:6px;}
-#inputBar{display:flex;padding:10px;border-top:1px solid var(--border);gap:6px;position:relative;}
-#inputBar input{flex:1;padding:10px;border-radius:10px;border:none;outline:none;}
-#inputBar button{padding:10px 14px;border-radius:10px;border:none;background:var(--accent);color:#000;}
-#membersPanel{width:250px;background:var(--panel);border-left:1px solid var(--border);padding:10px;overflow:auto;}
-.member{margin-bottom:6px;display:flex;align-items:center;gap:6px;transition:.3s;cursor:pointer;}
-.member img{width:32px;height:32px;border-radius:50%;object-fit:cover;}
-.ownerBadge{font-weight:bold;color:gold;}
-#ownerMenu{display:none;margin-top:10px;border:1px solid var(--border);padding:10px;background:var(--panel);border-radius:10px;transition:.3s;}
-#settings{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;}
-#settings .box{background:var(--panel);padding:20px;border-radius:14px;width:280px;text-align:center;}
-#settings input,#settings button,#settings select{width:100%;padding:10px;margin-top:10px;border-radius:10px;border:none;}
-#memberInfoPanel{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;opacity:0;transition:.3s;pointer-events:none;}
-#memberInfoPanel.visible{opacity:1;pointer-events:auto;}
-#memberInfoBox{background:var(--panel);padding:20px;border-radius:14px;width:260px;text-align:center;}
-#memberInfoPic{width:64px;height:64px;border-radius:50%;margin-bottom:10px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:32px;}
-#ownerActionsForMember{margin-top:10px;}
-#ownerActionsForMember button{margin:4px;}
-#plusMenu{position:absolute;bottom:50px;left:0;background:var(--panel);border:1px solid var(--border);padding:6px;display:none;border-radius:8px;flex-direction:column;}
-#plusMenu button{margin:2px 0;}
-
-/* ALERTS */
-#customAlert, #customInputAlert{
-  position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-  background: #ffcccc; color: #900; padding: 16px 24px; border-radius: 12px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.2); display: none; opacity: 0;
-  z-index: 9999; font-weight: bold; text-align: center;
-  transition: opacity 0.5s, transform 0.5s;
-}
-#customAlert button, #customInputAlert button{
-  margin-top: 8px; padding: 6px 12px; border: none; border-radius: 8px;
-  background: #900; color: #fff; cursor: pointer;
-}
-#customInputAlert input{
-  margin-top: 8px; padding: 6px 12px; border-radius: 8px; border: 1px solid #900; width: 80%;
-}
-/* MENTION */
-.mention{
-  background: rgba(0,120,255,0.25);
-  color: #7fd4ff;
-  padding: 2px 6px;
-  border-radius: 6px;
-  font-weight: 600;
+#app.active {
+  display: flex !important;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: var(--bg);
 }
 
-@keyframes fadeIn{from{opacity:0;transform:scale(.95);}to{opacity:1;transform:scale(1);} }
-@keyframes pop{to{opacity:1;transform:scale(1);} }
+#screen.hidden {
+  display: none !important;
+}
+.main {
+  flex: 1;
+  min-height: 0;
+}
+
+.messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.media-btn{
+  background:#222;
+  color:#fff;
+  font-size:18px;
+  width:40px;
+}
+
+.media-bar{
+  display:flex;
+  gap:6px;
+  padding:6px;
+  background:#1a1a22;
+  border-left:4px solid var(--accent);
+  overflow-x:auto;
+}
+
+.media-item{
+  position:relative;
+  background:#000;
+  border-radius:8px;
+  padding:4px;
+}
+
+.media-item img,
+.media-item video{
+  max-width:80px;
+  max-height:60px;
+  border-radius:6px;
+}
+
+.media-item audio{
+  width:140px;
+}
+
+.media-remove{
+  position:absolute;
+  top:-6px;
+  right:-6px;
+  background:#ff4d4d;
+  border:none;
+  color:#fff;
+  border-radius:50%;
+  width:18px;
+  height:18px;
+  font-size:12px;
+  cursor:pointer;
+}
+
 </style>
 </head>
+
 <body>
 
-<!-- START MENU -->
-<div id="screensharePanel" style="display:flex; flex-wrap:wrap; gap:8px; padding:10px;"></div>
+<div id="screen">
 
+<!-- LOGIN / REGISTER -->
 
-<div id="startMenu">
-  <h2>Enter Username</h2>
-  <input id="usernameInput" placeholder="Username">
-  <button id="usernameBtn">Continue</button>
+<!-- HOME -->
+<div class="card hidden" id="home">
+  <h3>Bem-vindo</h3><br>
+  <button onclick="showCreate()">➕ Criar servidor</button><br><br>
+  <button onclick="showJoin()">🔑 Entrar servidor</button><br><br>
+  <button onclick="openSettings()">⚙️ Configurações</button>
 </div>
 
-<!-- GROUP CHOICE -->
-<div id="groupChoiceMenu" class="hidden">
-  <h2>Hello <span id="displayName"></span></h2>
-  <button id="createGroupBtn">Create Group</button>
-  <button id="joinGroupBtn">Join Group</button>
+<div class="card" id="auth">
+  <h3>Conta</h3><br>
+  <input id="authNameInput" placeholder="Nome"><br><br>
+  <input id="authIconInput" placeholder="URL do ícone (opcional)"><br><br>
+  <button onclick="register()">Cadastrar</button>
+  <br><br>
+  <button onclick="login()">Login</button>
 </div>
 
-<!-- CREATE / JOIN BOXES -->
-<div id="createBox" class="hidden">
-  <input id="groupNameInput" placeholder="Group Name">
-  <input id="groupIconInput" placeholder="Group Icon URL">
-  <input id="groupPassInput" placeholder="Group Password">
-  <button id="createGroupConfirm">Create</button>
-  <button onclick="closeCreateJoin()">Cancel</button>
+<!-- CREATE SERVER -->
+<div class="card hidden" id="create">
+  <input id="srvNameInput" placeholder="Nome do servidor"><br><br>
+  <input id="srvPSGInput" placeholder="PSG (ID do servidor)"><br><br>
+  <input id="srvIconInput" placeholder="Ícone do servidor"><br><br>
+  <button type="button" onclick="createServer()">Criar</button>
 </div>
 
-<div id="joinBox" class="hidden">
-  <input id="groupIdInput" placeholder="Group ID">
-  <input id="joinPassInput" placeholder="Group Password">
-  <button id="joinGroupConfirm">Join</button>
-  <button onclick="closeCreateJoin()">Cancel</button>
+<!-- JOIN SERVER -->
+<div class="card hidden" id="join">
+  <input id="joinPSGInput" placeholder="PSG do servidor"><br><br>
+  <button onclick="joinServer()">Entrar</button>
+</div>
+
+
 </div>
 
 <!-- CHAT -->
-<div id="app">
-  <div id="chatContainer">
-    <div id="topBar">
-  <div>
-    <span id="groupIconDisplay"></span>
-    <span id="groupNameDisplay"></span>
-  </div>
-  <div>
-    <span id="myNameDisplay"></span>
+<div id="app" class="hidden">
+  <div class="topbar">
+    <b id="srvTitle"></b>
     <button onclick="openSettings()">⚙️</button>
-    <button id="ownerCrown" style="display:none" onclick="toggleOwnerMenu()">👑</button>
-    <button onclick="toggleCamera()">📷 Camera</button>
-    <button onclick="toggleScreenShare()">🖥️ ScreenShare</button>
   </div>
-</div>
-    <div id="chatArea"></div>
-    <div id="inputBar">
-      <input id="msgInput" placeholder="Message">
-      <button id="plusBtn">+</button>
-      <button onclick="sendMsg()">Send</button>
-      <input type="file" id="imgInput" accept="image/*" hidden>
-      <div id="plusMenu">
-        <button id="plusImageBtn">Image</button>
-        <button id="plusEmojiBtn">Upload Emoji</button>
-        <input type="file" id="emojiUploadInput" accept="image/*" hidden>
+
+  <div class="main">
+    <div class="sidebar" id="channels"></div>
+
+    <div class="chat">
+      <div class="messages" id="messages"></div>
+
+      <div id="replyingBar" class="replying-bar hidden">
+        <span id="replyingText"></span>
+        <button onclick="cancelReply()">✖</button>
+      </div>
+
+      <div id="mediaBar" class="media-bar hidden"></div>
+
+      <div class="input">
+        <button class="media-btn" onclick="openMedia()">➕</button>
+        <input id="mediaInput" type="file" multiple
+          accept="image/*,video/*,audio/*,.gif" hidden
+          onchange="handleMedia(this.files)">
+        <input id="text" placeholder="Mensagem">
+        <button onclick="send()">Enviar</button>
       </div>
     </div>
-  </div>
-  <div id="membersPanel"></div>
-  <div id="ownerMenu">
-    <h4>Owner Menu</h4>
-
-    <input id="ownerEditGroupId" placeholder="New Group ID">
-    <input id="ownerEditGroupName" placeholder="New Group Name">
-    <input id="ownerEditGroupPass" placeholder="New Password">
-    <input id="ownerEditGroupIcon" placeholder="New Icon URL">
-
-    <div style="margin-top:6px;font-size:12px">
-      Current ID: <span id="ownerGroupID"></span>
-    </div>
-
-    <button onclick="applyOwnerChanges()">Apply</button>
-    <button onclick="shutdownGroup()">Shutdown Group</button>
   </div>
 </div>
 
 <!-- SETTINGS -->
 <div id="settings">
-  <div class="box">
-    <h3>Settings</h3>
-    <input id="profileUpload" type="file" accept="image/*">
-    <button onclick="toggleTheme()">Toggle Theme</button>
-    <button onclick="closeSettings()">Close</button>
-  </div>
-</div>
+  <div class="settings-panel">
+    <h2>Configurações</h2><br>
+    <button onclick="settingsTab('account')">Conta</button>
+    <button onclick="settingsTab('theme')">Tema</button>
+    <br><br>
 
-<!-- MEMBER INFO PANEL -->
-<div id="memberInfoPanel">
-  <div id="memberInfoBox">
-    <div id="memberInfoPic"></div>
-    <div id="memberInfoName"></div>
-    <div id="ownerActionsForMember" class="hidden">
-      <button id="kickBtn">Kick</button>
-      <button id="banBtn">Ban</button>
-      <button id="muteBtn">Mute</button>
+    <div id="setAccount">
+      <input id="setName"><br><br>
+      <input id="setIcon"><br><br>
+      <button onclick="saveAccount()">Salvar</button><br><br>
+      <button onclick="logout()">Trocar conta</button><br><br>
+      <button onclick="deactivate()" style="background:red">Desativar conta</button>
     </div>
-    <button onclick="closeMemberInfo()">Close</button>
+
+    <div id="setTheme" class="hidden">
+      <button onclick="setTheme('#0b0b12')">Escuro</button>
+      <button onclick="setTheme('#f5f5f5')">Claro</button>
+    </div>
+
+    <br>
+    <button onclick="closeSettings()">Fechar</button>
   </div>
-</div>
-
-<!-- CUSTOM ALERT -->
-<div id="customAlert">
-  <span id="customAlertText"></span><br>
-  <button id="customAlertBtn">OK</button>
-</div>
-
-<!-- CUSTOM INPUT ALERT -->
-<div id="customInputAlert">
-  <span id="customInputText">Enter emoji name:</span><br>
-  <input type="text" id="customInputBox" placeholder="Emoji name">
-  <button id="customInputBtn">OK</button>
 </div>
 
 <script>
-
-
-
-let localVideoStream = null;  // para screen share
-let localAudioStream = null;  // para microfone
-let outgoingCalls = {};       // chamadas de áudio ativas
-
-// ---------------- VARIABLES ----------------
-let username='', profilePic='', finalName='';
-let isHost=false, peer, conn;
-let users={}, banned=[], group={name:'',icon:'',password:''};
-let groupId=''; let isMuted=false;
-const defaultEmojis = {'logo':'https://ia801709.us.archive.org/0/items/566-sem-titulo-20251216114843/566%20Sem%20T%C3%ADtulo_20251216114843.png'};
-const userEmojis = {...defaultEmojis};
-let nextEmojiNumber=1;
-
-// ---------------- SAFE DOM ----------------
-function setTextSafe(id, value){
-  const el = document.getElementById(id);
-  if(el) el.innerText = value;
-}
-
-function setHTMLSafe(id, html){
-  const el = document.getElementById(id);
-  if(el) el.innerHTML = html;
-}
-
-// ---------------- SOUNDS ----------------
-function PlaySound(url){
-  const audio = new Audio(url);
-  audio.play().catch(e=>console.log('Sound error:', e));
-}
-
-const soundAlert = 'https://dn710201.ca.archive.org/0/items/windowsxpsamsung/SSCriticalStop.mp3';
-const soundInputAlert = 'https://dn710201.ca.archive.org/0/items/windowsxpsamsung/SSCriticalStop.mp3';
-const soundMention = 'https://dn710201.ca.archive.org/0/items/windowsxpsamsung/SSContactOnline.mp3';
-const soundNormalMsg = 'https://dn710201.ca.archive.org/0/items/windowsxpsamsung/SSBallon.mp3';
-const soundBtnClick = 'https://dn710201.ca.archive.org/0/items/windowsxpsamsung/SSBallon.mp3';
-
-// ---------------- ELEMENTS ----------------
-const startMenu=document.getElementById('startMenu');
-const usernameInput=document.getElementById('usernameInput');
-const usernameBtn=document.getElementById('usernameBtn');
-const groupChoiceMenu=document.getElementById('groupChoiceMenu');
-const displayName=document.getElementById('displayName');
-const createGroupBtn=document.getElementById('createGroupBtn');
-const joinGroupBtn=document.getElementById('joinGroupBtn');
-const createBox=document.getElementById('createBox');
-const joinBox=document.getElementById('joinBox');
-const createGroupConfirm=document.getElementById('createGroupConfirm');
-const joinGroupConfirm=document.getElementById('joinGroupConfirm');
-const app=document.getElementById('app');
-const chatArea=document.getElementById('chatArea');
-const msgInput=document.getElementById('msgInput');
-const imgInput=document.getElementById('imgInput');
-const membersPanel=document.getElementById('membersPanel');
-const ownerMenu=document.getElementById('ownerMenu');
-const ownerCrown=document.getElementById('ownerCrown');
-const ownerGroupID=document.getElementById('ownerGroupID');
-const myNameDisplay=document.getElementById('myNameDisplay');
-const groupNameDisplay=document.getElementById('groupNameDisplay');
-const groupIconDisplay=document.getElementById('groupIconDisplay');
-const settings=document.getElementById('settings');
-const memberInfoPanel=document.getElementById('memberInfoPanel');
-const memberInfoName=document.getElementById('memberInfoName');
-const memberInfoPic=document.getElementById('memberInfoPic');
-const ownerActionsForMember=document.getElementById('ownerActionsForMember');
-const kickBtn=document.getElementById('kickBtn');
-const banBtn=document.getElementById('banBtn');
-const muteBtn=document.getElementById('muteBtn');
-const plusBtn=document.getElementById('plusBtn');
-const plusMenu=document.getElementById('plusMenu');
-const plusImageBtn=document.getElementById('plusImageBtn');
-const plusEmojiBtn=document.getElementById('plusEmojiBtn');
-const emojiUploadInput=document.getElementById('emojiUploadInput');
-const ownerEditGroupId = document.getElementById('ownerEditGroupId');
-const ownerEditGroupName = document.getElementById('ownerEditGroupName');
-const ownerEditGroupPass = document.getElementById('ownerEditGroupPass');
-const ownerEditGroupIcon = document.getElementById('ownerEditGroupIcon');
-
-
-// ---------------- ALERT FUNCTIONS ----------------
-function showCustomAlert(text){
-  PlaySound(soundAlert);
-  const alertBox=document.getElementById('customAlert');
-  const alertText=document.getElementById('customAlertText');
-  const alertBtn=document.getElementById('customAlertBtn');
-  alertText.innerText=text;
-  alertBox.style.display='block';
-  setTimeout(()=>{alertBox.style.opacity='1';},50);
-  let fadeTimeout=setTimeout(()=>closeCustomAlert(),6000);
-  alertBtn.onclick=()=>{
-    PlaySound(soundBtnClick);
-    clearTimeout(fadeTimeout);
-    closeCustomAlert();
-  }
-}
-function closeCustomAlert(){
-  const alertBox=document.getElementById('customAlert');
-  alertBox.style.opacity='0';
-  setTimeout(()=>{alertBox.style.display='none';},500);
-}
-
-let customInputCallback = null;
-function showCustomInputAlert(promptText, callback){
-  PlaySound(soundInputAlert);
-  const alertBox=document.getElementById('customInputAlert');
-  const inputBox=document.getElementById('customInputBox');
-  const alertText=document.getElementById('customInputText');
-  const btn=document.getElementById('customInputBtn');
-  alertText.innerText=promptText;
-  inputBox.value='';
-  alertBox.style.display='block';
-  setTimeout(()=>{alertBox.style.opacity='1';},50);
-  customInputCallback = callback;
-  btn.onclick=()=>{
-    PlaySound(soundBtnClick);
-    const value=inputBox.value.trim();
-    if(value){callback(value); closeCustomInputAlert();}
-  };
-}
-function closeCustomInputAlert(){
-  const alertBox=document.getElementById('customInputAlert');
-  alertBox.style.opacity='0';
-  setTimeout(()=>{alertBox.style.display='none';},500);
-}
-
-// ---------------- USERNAME ----------------
-usernameBtn.onclick = ()=>{username=usernameInput.value.trim()||'Guest'; finalName=username; displayName.innerText=finalName; startMenu.classList.add('hidden'); groupChoiceMenu.classList.remove('hidden');}
-
-// ---------------- CREATE / JOIN ----------------
-createGroupBtn.onclick=()=>{PlaySound(soundBtnClick); groupChoiceMenu.classList.add('hidden'); createBox.classList.remove('hidden');}
-joinGroupBtn.onclick=()=>{PlaySound(soundBtnClick); groupChoiceMenu.classList.add('hidden'); joinBox.classList.remove('hidden');}
-function closeCreateJoin(){createBox.classList.add('hidden'); joinBox.classList.add('hidden'); groupChoiceMenu.classList.remove('hidden');}
-
-// ---------------- CREATE GROUP ----------------
-createGroupConfirm.onclick=()=>{
-  PlaySound(soundBtnClick);
-  group.name=groupNameInput.value.trim()||'My Group';
-  group.icon=groupIconInput.value.trim()||'';
-  group.password=groupPassInput.value.trim()||'';
-  isHost=true;
-  groupId='group-'+Math.random().toString(36).substr(2,6);
-  peer=new Peer(groupId,{debug:2});
-  peer.on('open',id=>{
-    users[id]={name:finalName,pic:profilePic,muted:false};
-    setTextSafe('myNameDisplay', finalName);
-    setTextSafe('groupNameDisplay', group.name);
-    setTextSafe('ownerGroupID', groupId);
-    if(group.icon) groupIconDisplay.innerHTML=`<img src="${group.icon}" style="width:32px;height:32px;border-radius:50%;">`;
-    ownerCrown.style.display='inline';
-    updateMembers();
-    createBox.classList.add('hidden'); app.style.opacity='1';
-  });
-peer.on('connection', c=>{
-  c.on('data', data=>{
-    if(data.type==='join'){
-      if(group.password && data.password !== group.password){
-        c.send({type:'shutdown'});
-        c.close();
-        return;
-      }
-
-      users[c.peer] = {name: data.name, pic: data.pic||'', muted:false};
-      c.send({type:'userList', users: users, group: group});
-      updateMembers();
-      sendJoinNotification(c.peer, data.name);
-    } else handleData(data);
-  });
-});
-}
-peer.on('call', call => {
-  // Aceita automaticamente
-  call.answer(localStream || null);
-  call.on('stream', remoteStream => {
-    updateScreenshareTile(call.peer, remoteStream);
-  });
-});
-
-
-// ---------------- JOIN GROUP ----------------
-joinGroupConfirm.onclick = () => {
-  PlaySound(soundBtnClick);
-
-  const id = groupIdInput.value.trim();
-  if(!id) return showCustomAlert('Group ID required');
-  const pass = joinPassInput.value.trim();
-
-  // 1️⃣ Criar peer
-  peer = new Peer(undefined, {debug: 2});
-
-  // 2️⃣ Registrar listener de erro **imediatamente depois de criar o peer**
-  peer.on('error', (err) => {
-    console.log('Peer error:', err);
-    showCustomAlert('Peer error: ' + err);
-  });
-
-  // 3️⃣ Registrar evento open
-  peer.on('open', () => {
-    console.log('Peer opened with id:', peer.id); // ✅ debug
-
-    conn = peer.connect(id);
-
-    // 4️⃣ Listener para quando a conexão abrir
-    conn.on('open', () => {
-      console.log('Connected to host'); // ✅ debug
-      // envia join com senha
-      conn.send({type:'join', name: finalName, pic: profilePic, password: pass});
-      users[peer.id] = {name: finalName, pic: profilePic, muted: false};
-      myNameDisplay.innerText = finalName;
-      joinBox.classList.add('hidden');
-      app.style.opacity='1';
-    });
-
-    // 5️⃣ Listener para receber dados
-    conn.on('data', (data) => {
-      if(data.type === 'userList'){
-        users = data.users;
-        if(data.group){
-          group = data.group;
-          setTextSafe('groupNameDisplay', group.name);
-          setHTMLSafe(
-            'groupIconDisplay',
-            group.icon ? `<img src="${group.icon}" style="width:32px;height:32px;border-radius:50%;">` : ''
-          );
-        }
-        updateMembers();
-      } else if(data.type === 'shutdown'){
-        showCustomAlert('Wrong password or server shutdown');
-        setTimeout(()=>location.reload(),4000);
-      } else handleData(data);
-    });
-  });
-
-  // 6️⃣ Listener para conexões entrantes
-  peer.on('connection', c => {
-    handlePeerConnection(c);
-  });
-};
-
-// ---------------- HANDLE DATA ----------------
-function handleData(data){
-  switch(data.type){
-        case 'userList':
-      users = data.users;
-      if(data.group){
-        group = data.group;
-        setTextSafe('groupNameDisplay', group.name);
-        setHTMLSafe(
-          'groupIconDisplay',
-          group.icon
-            ? `<img src="${group.icon}" style="width:32px;height:32px;border-radius:50%;">`
-            : ''
-        );
-      }
-      updateMembers();
-    break;
-    case 'msg': if(!isMuted){addMsg(data.name,data.text,false,data.pic);} break;
-    case 'img': if(!isMuted){addImg(data.name,data.data,false,data.pic);} break;
-    case 'shutdown': showCustomAlert('Server shutdown'); setTimeout(()=>location.reload(),6000); break;
-    case 'mute': if(data.targetId===peer.id){isMuted=data.mute; if(isMuted){msgInput.value="You're muted."; msgInput.disabled=true;} else{msgInput.value=''; msgInput.disabled=false;}} break;
-    case 'avatarChange': if(users[data.id]){users[data.id].pic=data.pic; updateMembers();} break;case 'groupUpdate':
-  group.name = data.name;
-  group.password = data.password;
-  group.icon = data.icon;
-
-  setTextSafe('groupNameDisplay', group.name);
-  setHTMLSafe(
-    'groupIconDisplay',
-    group.icon
-      ? `<img src="${group.icon}" style="width:32px;height:32px;border-radius:50%;">`
-      : ''
-  );
-break;
-    case 'redirect':
-    peer.destroy();
-
-    groupId = data.newId;
-    group = {
-      name: data.name,
-      icon: data.icon,
-      password: data.password
-    };
-
-    peer = new Peer(undefined,{debug:2});
-    peer.on('open', ()=>{
-      conn = peer.connect(groupId);
-      conn.on('open', ()=>{
-        conn.send({
-          type:'join',
-          name: finalName,
-          pic: profilePic,
-          password: group.password
-        });
-      });
-      conn.on('data', handleData);
-    });
-break;
+let server = {
+  name: "Servidor",
+  psg: "",
+  icon: "",
+  channels: {
+    "General": [],
+    "Off-topic": []
   }
 }
 
-// ---------------- MSG / IMG ----------------
-function addMsg(name,text,me,pic=''){
-  let hasMention = false;
-  const myTag = '@' + finalName;
+const screen = document.getElementById("screen")
+const auth = document.getElementById("auth")
+const home = document.getElementById("home")
+const create = document.getElementById("create")
+const join = document.getElementById("join")
+const app = document.getElementById("app")
+const srvTitle = document.getElementById("srvTitle")
+const channels = document.getElementById("channels")
+const messages = document.getElementById("messages")
+const text = document.getElementById("text")
 
-  if(text.includes(myTag)){
-    hasMention = true;
-    text = text.replaceAll(
-      myTag,
-      `<span class="mention">${myTag}</span>`
-    );
+
+/* ===== STORAGE ===== */
+const authName = document.getElementById("authNameInput")
+const authIcon = document.getElementById("authIconInput")
+const srvName = document.getElementById("srvNameInput")
+const srvPSG = document.getElementById("srvPSGInput")
+const srvIcon = document.getElementById("srvIconInput")
+const joinPSG = document.getElementById("joinPSGInput")
+
+const db={
+  get:k=>JSON.parse(localStorage.getItem(k)),
+  set:(k,v)=>localStorage.setItem(k,JSON.stringify(v)),
+  del:k=>localStorage.removeItem(k)
+}
+
+/* ===== HASH ===== */
+async function sha256(t){
+  const b=new TextEncoder().encode(t)
+  const h=await crypto.subtle.digest("SHA-256",b)
+  return [...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,"0")).join("")
+}
+function enterChat() {
+  // ESCONDE TODAS AS TELAS DE MENU
+  screen.classList.add("hidden");
+
+  // MOSTRA CHAT FULLSCREEN
+  app.classList.add("active");
+  app.classList.remove("hidden");
+
+  srvTitle.textContent = server?.name || "Servidor";
+  renderChannels();
+}
+
+/* ===== ACCOUNT ===== */
+let account=db.get("account")
+if(account) showHome()
+async function register(){
+  const name=authName.value||"Account"
+  const icon=authIcon.value||"https://i.imgur.com/a/3VwiEAH.png"
+
+  const psk="PSK://DO-NOT-SHARE-THIS/"+crypto.randomUUID()
+  const hash=await sha256(psk)
+
+  account={name,icon,hash}
+  db.set("account",account)
+
+  pskValue.value=psk
+  pskModal.style.display="flex"
+}
+function copyPSK(){
+  pskValue.select()
+  document.execCommand("copy")
+}
+function closePSK(){
+  pskModal.style.display="none"
+  showHome()
+}
+function login(){
+  loginPSK.value=""
+  loginModal.style.display="flex"
+}
+function showError(t){
+  errorText.textContent=t
+  errorModal.style.display="flex"
+}
+function closeError(){
+  errorModal.style.display="none"
+}
+async function doLogin(){
+  const psk=loginPSK.value
+  if(!psk.startsWith("PSK://DO-NOT-SHARE-THIS/")){
+    return showError("PSK inválido")
   }
-
-  for(let emoji in userEmojis){
-    text = text.replaceAll(
-      `:${emoji}:`,
-      `<img src="${userEmojis[emoji]}" style="width:24px;height:24px;">`
-    );
-  }
-
-  // 🔊 SOM APENAS AQUI
-  if(hasMention){
-    PlaySound(soundMention);
+  const hash=await sha256(psk)
+  const acc=db.get("account")
+  if(acc && acc.hash===hash){
+    account=acc
+    loginModal.style.display="none"
+    showHome()
   }else{
-    PlaySound(soundNormalMsg);
+    showError("PSK incorreto")
+  }
+}
+function closeLogin(){
+  loginModal.style.display="none"
+}
+/* ===== UI FLOW ===== */
+function showHome(){
+  auth.classList.add("hidden")
+  home.classList.remove("hidden")
+}
+function showCreate(){
+  home.classList.add("hidden")
+  create.classList.remove("hidden")
+}
+function showJoin(){
+  home.classList.add("hidden")
+  join.classList.remove("hidden")
+}
+
+/* ===== REPLY STUFF ===== */
+let replying = null;
+const replyingBar = document.getElementById("replyingBar");
+const replyingText = document.getElementById("replyingText");
+
+function updateReplyBar() {
+  if (replying) {
+    replyingText.textContent = `Você está respondendo para @${replying.user}`;
+    replyingBar.classList.remove("hidden");
+  } else {
+    replyingText.textContent = "";
+    replyingBar.classList.add("hidden");
+  }
+}
+
+// começa invisível
+updateReplyBar();
+
+function setReply(msg) {
+  replying = msg;
+  updateReplyBar();
+}
+
+function cancelReply() {
+  replying = null;
+  updateReplyBar();
+}
+
+let mediaFiles = [];
+const mediaBar = document.getElementById("mediaBar");
+const mediaInput = document.getElementById("mediaInput");
+
+function openMedia(){
+  mediaInput.click();
+}
+
+function handleMedia(files){
+  [...files].forEach(file=>{
+    const reader = new FileReader();
+
+    reader.onload = e=>{
+      mediaFiles.push({
+        id: crypto.randomUUID(),
+        name: file.name,
+        type: file.type,
+        data: e.target.result // ✅ BASE64
+      });
+      renderMediaBar();
+    };
+
+    reader.readAsDataURL(file); // 🔥 BASE64 REAL
+  });
+
+  mediaInput.value = ""; // reset obrigatório
+}
+
+function renderMediaBar(){
+  mediaBar.innerHTML = "";
+
+  if(mediaFiles.length === 0){
+    mediaBar.classList.add("hidden");
+    mediaInput.value = "";
+    return;
   }
 
-  const div=document.createElement('div');
-  div.className='msg '+(me?'me':'other');
+  mediaBar.classList.remove("hidden");
 
-  let imgHTML = pic ? `<img src="${pic}" class="avatar">` : '';
-  div.innerHTML = `${imgHTML}<span>${name}</span>: ${text}`;
+  mediaFiles.forEach(m=>{
+    const box = document.createElement("div");
+    box.className = "media-item";
 
-  chatArea.appendChild(div);
-  chatArea.scrollTop=chatArea.scrollHeight;
-}
-function addImg(name,src,me,pic=''){
-  const div=document.createElement('div'); div.className='msg '+(me?'me':'other');
-  let imgHTML=pic?`<img src="${pic}" class="avatar">`:'';
-  div.innerHTML=`${imgHTML}<span>${name}</span><br><img src="${src}">`;
-  chatArea.appendChild(div); chatArea.scrollTop=chatArea.scrollHeight;
-}
-
-// ---------------- MEMBERS ----------------
-function updateMembers(){
-  membersPanel.innerHTML='';
-  for(let id in users){
-    const div=document.createElement('div'); div.className='member';
-    let avatarHTML='';
-    if(users[id].pic){avatarHTML=`<img src="${users[id].pic}">`;}
-    else{
-      const colors=['#FF4500','#FF8C00','#FFD700','#32CD32','#1E90FF','#BA55D3','#FF69B4'];
-      const color=colors[id.charCodeAt(0)%colors.length];
-      const letter=users[id].name[0].toUpperCase();
-      avatarHTML=`<div style="width:32px;height:32px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;">${letter}</div>`;
+    let el;
+    if(m.type.startsWith("image")){
+      el = document.createElement("img");
+      el.src = m.data;
+    }else if(m.type.startsWith("video")){
+      el = document.createElement("video");
+      el.src = m.data;
+      el.controls = true;
+    }else if(m.type.startsWith("audio")){
+      el = document.createElement("audio");
+      el.src = m.data;
+      el.controls = true;
     }
-    div.innerHTML=avatarHTML+' '+users[id].name+(id===peer.id?' (You)':'');
-    div.onclick=()=>showMemberInfo(id);
-    membersPanel.appendChild(div);
-  }
-}
 
-// ---------------- MEMBER INFO ----------------
-function showMemberInfo(id){
-  const user=users[id]; memberInfoPic.innerHTML=''; memberInfoPic.style.background=''; memberInfoPic.style.color='';
-  memberInfoPic.style.display='flex'; memberInfoPic.style.alignItems='center'; memberInfoPic.style.justifyContent='center';
-  memberInfoPic.style.fontWeight='bold'; memberInfoPic.style.fontSize='32px';
-  if(user.pic){const img=document.createElement('img'); img.src=user.pic; img.style.width='64px'; img.style.height='64px'; img.style.borderRadius='50%'; memberInfoPic.appendChild(img);}
-  else{const colors=['#FF4500','#FF8C00','#FFD700','#32CD32','#1E90FF','#BA55D3','#FF69B4']; const color=colors[id.charCodeAt(0)%colors.length]; memberInfoPic.style.background=color; memberInfoPic.style.color='#fff'; memberInfoPic.innerText=user.name[0].toUpperCase();}
-  memberInfoName.innerText=user.name;
-  if(isHost && id!==peer.id){ownerActionsForMember.classList.remove('hidden');
-    kickBtn.onclick=()=>{kick(id); closeMemberInfo();};
-    banBtn.onclick=()=>{banUser(id); closeMemberInfo();};
-    muteBtn.onclick=()=>{
-      const targetMuted=!users[id].muted;
-      users[id].muted=targetMuted;
-      if(peer.connections[id]){peer.connections[id].forEach(c=>c.send({type:'mute',mute:targetMuted,targetId:id}));}
-    };
-  } else ownerActionsForMember.classList.add('hidden');
-  memberInfoPanel.classList.add('visible');
-}
-function closeMemberInfo(){memberInfoPanel.classList.remove('visible');}
-
-// ---------------- OWNER ----------------
-function toggleOwnerMenu(){ownerMenu.style.display = ownerMenu.style.display==='block'?'none':'block';}
-function kick(id){if(isHost && peer.connections[id]){peer.connections[id].forEach(c=>c.send({type:'shutdown'})); delete users[id]; updateMembers();}}
-function banUser(id){banned.push(id); kick(id);}
-function shutdownGroup(){if(isHost) broadcast({type:'shutdown'}); showCustomAlert('Server shutdown');}
-function applyOwnerChanges(){
-  if(!isHost) return;
-
-  const newId = ownerEditGroupId.value.trim();
-  const newName = ownerEditGroupName.value.trim();
-  const newPass = ownerEditGroupPass.value.trim();
-  const newIcon = ownerEditGroupIcon.value.trim();
-
-  if(newName){
-    group.name = newName;
-    setTextSafe('groupNameDisplay', group.name);
-  }
-
-  if(newPass){
-    group.password = newPass;
-  }
-
-  if(newIcon){
-    group.icon = newIcon;
-    setHTMLSafe(
-      'groupIconDisplay',
-      `<img src="${group.icon}" style="width:32px;height:32px;border-radius:50%;">`
-    );
-  }
-
-  broadcast({
-    type:'groupUpdate',
-    name:group.name,
-    password:group.password,
-    icon:group.icon
-  });
-
-  if(newId && newId !== groupId){
-    recreateGroupWithNewId(newId);
-  }
-
-  showCustomAlert('Group updated');
-}
-function recreateGroupWithNewId(newId){
-  if(!isHost) return;
-
-  const oldUsers = {...users};
-
-  broadcast({
-    type:'redirect',
-    newId:newId,
-    name:group.name,
-    password:group.password,
-    icon:group.icon
-  });
-
-  // fecha peer antigo
-  peer.destroy();
-
-  users = {};
-  groupId = newId;
-
-  peer = new Peer(groupId,{debug:2});
-
-  peer.on('open', id=>{
-    // re-registra o host
-    users[id] = {
-      name: finalName,
-      pic: profilePic,
-      muted: false
+    const remove = document.createElement("button");
+    remove.className = "media-remove";
+    remove.textContent = "✖";
+    remove.onclick = ()=>{
+      mediaFiles = mediaFiles.filter(x=>x.id!==m.id);
+      renderMediaBar();
     };
 
-    setTextSafe('ownerGroupID', groupId);
-    updateMembers();
+    box.appendChild(el);
+    box.appendChild(remove);
+    mediaBar.appendChild(box);
   });
+}
 
-  peer.on('connection', c=>{
-    c.on('data', data=>{
-      if(data.type === 'join'){
-        // 🔐 valida senha
-        if(group.password && data.password !== group.password){
-          c.send({type:'shutdown'});
-          c.close();
-          return;
+// Atualiza a função do click em renderMessages
+function renderMessages(){
+  messages.innerHTML = "";
+
+  server.channels[channel].forEach(m => {
+    const wrap = document.createElement("div");
+    wrap.className = "msg";
+    wrap.id = m.id;
+
+    /* AVATAR */
+    const avatar = document.createElement("img");
+    avatar.className = "avatar";
+    avatar.src = m.icon || "https://i.imgur.com/FGE8gTE.png";
+    avatar.onerror = () => avatar.src = "https://i.imgur.com/FGE8gTE.png";
+
+    /* CONTEÚDO */
+    const content = document.createElement("div");
+    content.className = "msg-content";
+
+    /* REPLY */
+    if(m.reply){
+      const r = document.createElement("div");
+      r.className = "reply-box";
+      r.textContent = `↪ ${m.reply.user}: ${m.reply.text}`;
+      r.onclick = e=>{
+        e.stopPropagation();
+        document.getElementById(m.reply.id)?.scrollIntoView();
+      };
+      content.appendChild(r);
+    }
+
+    /* USER */
+    const user = document.createElement("div");
+    user.className = "msg-user";
+    user.textContent = m.user;
+    content.appendChild(user);
+
+    /* TEXTO (SÓ SE EXISTIR) */
+    if(m.text && m.text.trim() !== ""){
+      const txt = document.createElement("div");
+      txt.textContent = m.text;
+      content.appendChild(txt);
+    }
+
+    /* MÍDIA BASE64 (UMA ÚNICA VEZ) */
+    if(m.media){
+      m.media.forEach(md=>{
+        let el;
+
+        if(md.type.startsWith("image")){
+          el = document.createElement("img");
+          el.src = md.data;
+          el.style.maxWidth = "220px";
+          el.style.borderRadius = "8px";
+
+        }else if(md.type.startsWith("video")){
+          el = document.createElement("video");
+          el.src = md.data;
+          el.controls = true;
+          el.style.maxWidth = "240px";
+
+        }else if(md.type.startsWith("audio")){
+          el = document.createElement("audio");
+          el.src = md.data;
+          el.controls = true;
         }
 
-        users[c.peer] = {
-          name: data.name,
-          pic: data.pic || '',
-          muted: false
-        };
+        if(el) content.appendChild(el);
+      });
+    }
 
-        c.send({
-          type:'userList',
-          users: users,
-          group: group
-        });
+    wrap.appendChild(avatar);
+    wrap.appendChild(content);
+    wrap.onclick = ()=>setReply(m);
+    messages.appendChild(wrap);
+  });
 
-        updateMembers();
-        sendJoinNotification(c.peer, data.name);
-      }else{
-        handleData(data);
-      }
-    });
+  messages.scrollTop = messages.scrollHeight;
+}
+
+/* ===== SERVER ===== */
+let peer, conns={}, channel="General"
+let messagesData={}
+
+function createServer() {
+  server = {
+    name: srvName.value || "Servidor",
+    psg: srvPSG.value || crypto.randomUUID(),
+    icon: srvIcon.value || "",
+    channels: {
+      "General": [],
+      "Off-topic": []
+    }
+  };
+
+  channel = "General";
+  startPeer(server.psg + "-host");
+
+  // HOST entra direto
+  enterChat();
+}
+function startPeer(id){
+  peer = new Peer(id);
+
+  peer.on("connection", c => {
+    conns[c.peer] = c;
+
+    c.on("data", handle);
   });
 }
-// ---------------- BROADCAST ----------------
-function broadcast(data){for(let id in users){if(id!==peer.id && peer.connections[id]){peer.connections[id].forEach(c=>c.send(data));}}}
 
-// ---------------- SETTINGS ----------------
-function openSettings(){settings.style.display='flex'}
-function closeSettings(){settings.style.display='none'}
-function toggleTheme(){document.body.classList.toggle('light')}
-document.getElementById('profileUpload').addEventListener('change',e=>{
-  const file=e.target.files[0]; if(!file) return;
-  const reader=new FileReader();
-  reader.onload=()=>{
-    profilePic=reader.result; users[peer.id].pic=profilePic; updateMembers();
-    broadcast({type:'avatarChange',id:peer.id,pic:profilePic});
-  }
-  reader.readAsDataURL(file);
+peer.on("connection", c => {
+  conns[c.peer] = c;
+
+  c.on("open", () => {
+    // envia estado completo do servidor
+    c.send({
+      type: "sync",
+      server
+    });
+  });
+
+  c.on("data", handle);
 });
 
-// ---------------- JOIN NOTIFICATIONS ----------------
-function sendJoinNotification(id,name){
-  const messages=[`@${name} just came here!`,`Welcome, @${name}!`,`Hey guys, a new guy came here!`];
-  const msg=messages[Math.floor(Math.random()*messages.length)];
-  addMsg('System',msg,false,'');
-  if(isHost) broadcast({type:'msg',name:'System',text:msg,pic:''});
-  else if(conn) conn.send({type:'msg',name:'System',text:msg,pic:''});
-}
+function joinServer(){
+  const base = joinPSG.value.trim();
+  if(!base) return alert("PSG inválido");
 
-// ---------------- SEND MSG ----------------
-function sendMsg(){
-  if(isMuted){msgInput.value="You're muted."; return;}
-  let txt=msgInput.value.trim(); 
-  const file=imgInput.files[0];
-  if(!txt && !file) return;
-  if(txt){addMsg(finalName,txt,true,profilePic); const data={type:'msg',name:finalName,text:txt,pic:profilePic}; if(isHost) broadcast(data); else if(conn) conn.send(data);}
-  if(file){
-    const reader=new FileReader();
-    reader.onload=()=>{
-      addImg(finalName,reader.result,true,profilePic);
-      const data={type:'img',name:finalName,data:reader.result,pic:profilePic};
-      if(isHost) broadcast(data); else if(conn) conn.send(data);
-    };
-    reader.readAsDataURL(file);
-    imgInput.value='';
-  }
-  msgInput.value='';
-}
+  const hostId = base + "-host";
+  const myId = base + "-" + crypto.randomUUID().slice(0,5);
 
-// ---------------- PLUS MENU ----------------
-plusBtn.onclick=()=>{PlaySound(soundBtnClick); plusMenu.style.display = plusMenu.style.display==='flex'?'none':'flex';}
-plusImageBtn.onclick=()=>{PlaySound(soundBtnClick); imgInput.click();}
-plusEmojiBtn.onclick=()=>{PlaySound(soundBtnClick); emojiUploadInput.click();}
+  startPeer(myId);
 
-// ---------------- EMOJI UPLOAD ----------------
-emojiUploadInput.addEventListener('change', e=>{
-  const file=e.target.files[0]; if(!file) return;
-  const reader=new FileReader();
-  reader.onload=()=>{
-    showCustomInputAlert('Enter custom emoji name:', (name)=>{
-      if(name){userEmojis[name]=reader.result; showCustomAlert(`Emoji :${name}: created!`);}
+  peer.on("open", () => {
+    const c = peer.connect(hostId, { reliable: true });
+
+    let ok = false;
+
+    const timeout = setTimeout(() => {
+      if(!ok){
+        alert("Servidor não encontrado ou offline");
+        location.reload();
+      }
+    }, 4000);
+
+    c.on("open", () => {
+      conns[hostId] = c;
+      c.send({ type: "hello" }); // 🔥 pede sync
     });
+
+    c.on("data", d => {
+      if(d.type === "sync"){
+        ok = true;
+        clearTimeout(timeout);
+        server = d.server;
+        enterChat(); // 🔥 agora sim
+      }
+      handle(d);
+    });
+
+    c.on("error", () => {
+      alert("Erro ao conectar");
+      location.reload();
+    });
+  });
+}
+
+/* ===== CHAT ===== */
+function renderChannels(){
+  channels.innerHTML=""
+  Object.keys(server.channels).forEach(c=>{
+    const d=document.createElement("div")
+    d.textContent="# "+c
+    d.className="channel"+(c===channel?" active":"")
+    d.onclick=()=>{channel=c;renderChannels();renderMessages()}
+    channels.appendChild(d)
+  })
+  renderMessages()
+}
+function send(){
+  if(!text.value && mediaFiles.length === 0) return;
+
+  const msg = {
+    id: crypto.randomUUID(),
+    user: account.name,
+    text: text.value,
+    reply: replying,
+    media: mediaFiles.map(m=>({
+      name: m.name,
+      type: m.type,
+      data: m.data // ✅ BASE64
+    }))
+  };
+
+  server.channels[channel].push(msg);
+  broadcast(msg);
+
+  text.value = "";
+  mediaFiles = [];
+  mediaInput.value = "";
+  renderMediaBar();
+  cancelReply();
+  renderMessages();
+}
+
+function broadcast(m){
+  Object.values(conns).forEach(c=>c.send({type:"msg",channel,msg:m}))
+}
+function handle(d){
+  // HOST recebe hello
+  if(d.type === "hello"){
+    const c = conns[this.peer] || Object.values(conns).find(x => x.peer === this.peer);
+    if(c){
+      c.send({
+        type: "sync",
+        server
+      });
+    }
+    return;
   }
-  reader.readAsDataURL(file);
+
+  if(d.type === "sync"){
+    server = d.server;
+    enterChat(); // 🔥 ENTRA SÓ AQUI
+    return;
+  }
+
+  if(d.type === "msg"){
+    server.channels[d.channel].push(d.msg);
+    renderMessages();
+  }
+}
+
+/* ===== SETTINGS ===== */
+function openSettings(){
+  settings.style.display="block"
+  setName.value=account.name
+  setIcon.value=account.icon
+}
+function closeSettings(){settings.style.display="none"}
+function settingsTab(t){
+  setAccount.classList.toggle("hidden",t!=="account")
+  setTheme.classList.toggle("hidden",t!=="theme")
+}
+function saveAccount(){
+  account.name=setName.value
+  account.icon=setIcon.value
+  db.set("account",account)
+}
+function logout(){
+  location.reload()
+}
+function deactivate(){
+  if(confirm("Isso é irreversível. Continuar?")){
+    db.del("account")
+    location.reload()
+  }
+}
+function setTheme(bg){
+  document.documentElement.style.setProperty("--bg",bg)
+}
+// ===== EXPOSE TO HTML =====
+Object.assign(window, {
+  register,
+  login,
+  doLogin,
+  copyPSK,
+  closePSK,
+  closeLogin,
+  closeError,
+  showCreate,
+  showJoin,
+  openSettings,
+  closeSettings,
+  settingsTab,
+  saveAccount,
+  logout,
+  deactivate,
+  setTheme,
+  send,
+  cancelReply,
+  createServer,
+  joinServer
 });
-
-// ---------------- PEER CONNECTION ----------------
-function handlePeerConnection(c){c.on('data',handleData);}
-
-// ---------------- ESC ----------------
-settings.addEventListener('click',e=>{if(e.target===settings)closeSettings();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSettings();});
-const screensharePanel = document.getElementById('screensharePanel');
-let localStream = null;
-let isVoiceOn = false;
-let mutedUsers = {}; // ID: true/false
-
-function toggleVoice() {
-  if (isVoiceOn) stopVoice();
-  else startVoice();
-}
-
-function startVoice() {
-  if (localAudioStream) return;
-  navigator.mediaDevices.getUserMedia({ audio: true })
-    .then(stream => {
-      localAudioStream = stream;
-      isVoiceOn = true;
-      updateVoiceIcon(peer.id);
-
-      for (let id in users) {
-        if (id !== peer.id && peer.connections[id]) {
-          const call = peer.call(id, stream);
-          call.on('stream', remoteStream => playRemoteAudio(remoteStream, id));
-          outgoingCalls[id] = call;
-        }
-      }
-
-      // O próprio usuário pode ouvir seu áudio
-      playRemoteAudio(stream, peer.id);
-    })
-    .catch(e => showCustomAlert("Microphone denied: " + e.message));
-}
-
-function stopVoice() {
-  if (!localAudioStream) return;
-  localAudioStream.getTracks().forEach(track => track.stop());
-  localAudioStream = null;
-  isVoiceOn = false;
-  updateVoiceIcon(peer.id);
-
-  for (let id in outgoingCalls) {
-    outgoingCalls[id].close();
-  }
-  outgoingCalls = {};
-}
-
-function playRemoteAudio(stream, id){
-  let audio = document.getElementById('audio-'+id);
-  if(!audio){
-    audio = document.createElement('audio');
-    audio.id = 'audio-'+id;
-    audio.autoplay = true;
-    document.body.appendChild(audio);
-  }
-  audio.srcObject = stream;
-}
-
-// Função de criar/atualizar tile
-function updateScreenshareTile(id, videoStream=null){
-  let tile = document.getElementById('tile-'+id);
-  const user = users[id];
-  
-  if(!tile){
-    tile = document.createElement('div');
-    tile.id = 'tile-'+id;
-    tile.className = 'screenshareTile';
-
-    const nameDiv = document.createElement('div');
-    nameDiv.className = 'tileName';
-    nameDiv.innerText = user.name;
-    tile.appendChild(nameDiv);
-
-    // X só para o dono do tile
-    if(id === peer.id){
-      const closeBtn = document.createElement('button');
-      closeBtn.className = 'closeBtn';
-      closeBtn.innerText = 'X';
-      closeBtn.onclick = () => {
-    // Para áudio
-    if(localAudioStream){
-        localAudioStream.getTracks().forEach(track => track.stop());
-        localAudioStream = null;
-        isVoiceOn = false;
-        updateVoiceIcon(peer.id);
-    }
-    // Para vídeo
-    if(localVideoStream){
-        localVideoStream.getTracks().forEach(track => track.stop());
-        localVideoStream = null;
-        isScreenSharing = false;
-    }
-    tile.remove();
-};
-      tile.appendChild(closeBtn);
-    }
-
-    // Botão de voz
-    const voiceBtn = document.createElement('button');
-    voiceBtn.className = 'voiceBtn';
-    voiceBtn.innerText = (id === peer.id && isVoiceOn) ? '🔊' : '🔇';
-    voiceBtn.onclick = () => toggleVoice(id);
-    tile.appendChild(voiceBtn);
-
-    screensharePanel.appendChild(tile);
-  }
-
-  // Remove conteúdo antigo (vídeo/foto/letra)
-  Array.from(tile.children).forEach(c => {
-    if(!c.classList.contains('tileName') &&
-       !c.classList.contains('closeBtn') &&
-       !c.classList.contains('voiceBtn')){
-      tile.removeChild(c);
-    }
-  });
-
-  // Conteúdo do tile
-  if(videoStream){
-    const video = document.createElement('video');
-    video.srcObject = videoStream;
-    video.autoplay = true;
-    video.muted = (id === peer.id);
-    tile.appendChild(video);
-  } else if(user.pic){
-    const img = document.createElement('img');
-    img.src = user.pic;
-    tile.appendChild(img);
-  } else {
-    const letterDiv = document.createElement('div');
-    letterDiv.className = 'letterTile';
-    letterDiv.style.background = '#444';
-    letterDiv.style.width = '100%';
-    letterDiv.style.height = '100%';
-    letterDiv.style.display = 'flex';
-    letterDiv.style.alignItems = 'center';
-    letterDiv.style.justifyContent = 'center';
-    letterDiv.style.fontSize = '48px';
-    letterDiv.style.fontWeight = 'bold';
-    letterDiv.innerText = user.name[0].toUpperCase();
-    tile.appendChild(letterDiv);
-  }
-}
-// Mod pode mutar usuários
-function muteUserVoice(id, mute){
-  mutedUsers[id] = mute;
-  if(peer.connections[id]){
-    peer.connections[id].forEach(c=>c.send({type:'muteVoice',targetId:id,mute:mute}));
-  }
-}
-
-// Atualiza botão Voice nos tiles
-function updateVoiceIcon(id){
-    const tile = document.getElementById('tile-'+id);
-    if(tile){
-        const btn = tile.querySelector('.voiceBtn');
-        if(btn){
-            btn.innerText = (id===peer.id && isVoiceOn) ? '🔊' : '🔇';
-        }
-    }
-  }
-// ---------------- ATUALIZA O RETÂNGULO ----------------
-function updateScreenshareTile(id, stream){
-  if(!stream) return; // ❌ se não houver stream, não cria tile
-
-  let tile = document.getElementById('tile-'+id);
-  const user = users[id];
-
-  if(!tile){
-    tile = document.createElement('div');
-    tile.id = 'tile-'+id;
-    tile.className = 'screenshareTile';
-
-    // Nome
-    const nameDiv = document.createElement('div');
-    nameDiv.className = 'tileName';
-    nameDiv.innerText = user.name;
-    tile.appendChild(nameDiv);
-
-    // X sempre visível no dono
-    if(id === peer.id){
-      const closeBtn = document.createElement('button');
-      closeBtn.className = 'closeBtn';
-      closeBtn.innerText = 'X';
-closeBtn.onclick = () => {
-    // Para áudio
-    if(localAudioStream){
-        localAudioStream.getTracks().forEach(track => track.stop());
-        localAudioStream = null;
-        isVoiceOn = false;
-        updateVoiceIcon(peer.id);
-    }
-    // Para vídeo / screenshare
-    if(localVideoStream){
-        localVideoStream.getTracks().forEach(track => track.stop());
-        localVideoStream = null;
-        isScreenSharing = false;
-    }
-
-    tile.remove();
-};
-      tile.appendChild(closeBtn);
-    }
-
-    // Voice button
-    const voiceBtn = document.createElement('button');
-    voiceBtn.className = 'voiceBtn';
-    voiceBtn.innerText = isVoiceOn && id===peer.id ? '🔇' : '🔊';
-    voiceBtn.onclick = ()=>toggleVoice(id);
-    tile.appendChild(voiceBtn);
-
-    screensharePanel.appendChild(tile);
-  }
-
-  // Remove conteúdo anterior
-  Array.from(tile.children).forEach(c=>{
-    if(!c.classList.contains('tileName') && !c.classList.contains('closeBtn') && !c.classList.contains('voiceBtn')) tile.removeChild(c);
-  });
-
-  // Conteúdo: stream, foto ou letra
-  if(stream){
-    const video = document.createElement('video');
-    video.srcObject = stream;
-    video.autoplay = true;
-    video.muted = id === peer.id;
-    tile.appendChild(video);
-  } else if(user.pic){
-    const img = document.createElement('img');
-    img.src = user.pic;
-    tile.appendChild(img);
-  } else {
-    const letterDiv = document.createElement('div');
-    letterDiv.className = 'letterTile';
-    letterDiv.style.background = '#444';
-    letterDiv.style.width = '100%';
-    letterDiv.style.height = '100%';
-    letterDiv.style.display = 'flex';
-    letterDiv.style.alignItems = 'center';
-    letterDiv.style.justifyContent = 'center';
-    letterDiv.style.fontSize = '48px';
-    letterDiv.style.fontWeight = 'bold';
-    letterDiv.innerText = user.name[0].toUpperCase();
-    tile.appendChild(letterDiv);
-  }
-}
-function startCallTo(id){
-  if(localStream){
-    const call = peer.call(id, localStream);
-    call.on('stream', remoteStream=>{
-      updateScreenshareTile(id, remoteStream);
-    });
-  }
-}
-
-let isScreenSharing = false;
-
-function toggleScreenShare() {
-  if (isScreenSharing) {
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
-      localStream = null;
-    }
-    isScreenSharing = false;
-    // Fecha chamadas para todos
-    for (let id in users) {
-      if (outgoingCalls[id]) outgoingCalls[id].close();
-    }
-  } else {
-    navigator.mediaDevices.getDisplayMedia({ video: true })
-      .then(stream => {
-        localStream = stream;
-        isScreenSharing = true;
-
-        // Envia para todos
-        for (let id in users) {
-          if (id !== peer.id && peer.connections[id]) {
-            const call = peer.call(id, stream);
-            call.on('stream', remoteStream => {
-              updateScreenshareTile(id, remoteStream);
-            });
-            outgoingCalls[id] = call;
-          }
-        }
-
-        updateScreenshareTile(peer.id, stream);
-      })
-      .catch(e => showCustomAlert("ScreenShare denied: " + e.message));
-  }
-}
-function startVoiceCall() {
-  navigator.mediaDevices.getUserMedia({audio:true})
-    .then(stream => {
-      localStream = stream;
-      isVoiceOn = true;
-      updateVoiceIcon(peer.id);
-
-      // chama todos os usuários conectados
-      for (let id in users) {
-        if (id !== peer.id && peer.connections[id]) {
-          const call = peer.call(id, stream);
-          call.on('stream', remoteStream => {
-            // cria um tile só de áudio ou toca em background
-            playRemoteAudio(remoteStream, id);
-          });
-        }
-      }
-    })
-    .catch(e => showCustomAlert("Microphone denied: " + e.message));
-}
 
 </script>
+
 </body>
+<!-- MODAL PSK -->
+<div class="modal" id="pskModal">
+  <div class="modal-box">
+    <h3>⚠️ SEU PSK</h3>
+    <p>Guarde este código. Ele é sua senha.</p>
+    <textarea id="pskValue" rows="3" readonly></textarea>
+    <div class="modal-actions">
+      <button onclick="copyPSK()">📋 Copiar</button>
+      <button onclick="closePSK()">Continuar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL LOGIN -->
+<div class="modal" id="loginModal">
+  <div class="modal-box">
+    <h3>Login</h3>
+    <p>Cole seu PSK</p>
+    <input id="loginPSK">
+    <div class="modal-actions">
+      <button onclick="doLogin()">Entrar</button>
+      <button onclick="closeLogin()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ERROR -->
+<div class="modal" id="errorModal">
+  <div class="modal-box">
+    <h3>Erro</h3>
+    <p id="errorText"></p>
+    <div class="modal-actions">
+      <button onclick="closeError()">OK</button>
+    </div>
+  </div>
+</div>
 </html>
