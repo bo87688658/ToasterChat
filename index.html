@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>ToasterChat P2P</title>
+<title>ToasterChat</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -371,6 +371,110 @@ button {
   font-size:12px;
   cursor:pointer;
 }
+/* ===== MOBILE UI ===== */
+@media (max-width: 768px) {
+
+  /* layout geral */
+  #app.active {
+    height: 100dvh;
+  }
+
+  .topbar {
+    height: 52px;
+    font-size: 16px;
+  }
+
+  .main {
+    flex-direction: column;
+  }
+
+  /* ===== SIDEBAR vira drawer ===== */
+  .sidebar {
+    position: fixed;
+    top: 52px;
+    left: -260px;
+    width: 240px;
+    height: calc(100% - 52px);
+    z-index: 20;
+    transition: left .25s ease;
+    background: #111;
+  }
+
+  .sidebar.open {
+    left: 0;
+  }
+
+  /* botão menu */
+  .menu-btn {
+    background: none;
+    color: #fff;
+    font-size: 20px;
+  }
+
+  /* chat ocupa tudo */
+  .chat {
+    width: 100%;
+  }
+
+  .messages {
+    padding: 10px 8px;
+  }
+
+  /* mensagens */
+  .msg {
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .avatar {
+    width: 32px;
+    height: 32px;
+  }
+
+  .msg-user {
+    font-size: 12px;
+  }
+
+  /* ===== INPUT MOBILE ===== */
+  .chat .input {
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .chat .input input {
+    font-size: 16px; /* evita zoom no iOS */
+    height: 42px;
+  }
+
+  .chat .input button {
+    height: 42px;
+    min-width: 44px;
+  }
+
+  .media-btn {
+    width: 42px;
+    height: 42px;
+    font-size: 20px;
+  }
+
+  /* ===== REPLY BAR ===== */
+  .replying-bar {
+    font-size: 12px;
+    padding: 6px 8px;
+  }
+
+  /* ===== MEDIA BAR ===== */
+  .media-bar {
+    padding: 6px;
+    gap: 6px;
+  }
+
+  .media-item img,
+  .media-item video {
+    max-width: 100px;
+    max-height: 80px;
+  }
+}
 
 </style>
 </head>
@@ -383,33 +487,33 @@ button {
 
 <!-- HOME -->
 <div class="card hidden" id="home">
-  <h3>Bem-vindo</h3><br>
-  <button onclick="showCreate()">➕ Criar servidor</button><br><br>
-  <button onclick="showJoin()">🔑 Entrar servidor</button><br><br>
-  <button onclick="openSettings()">⚙️ Configurações</button>
+  <h3>Welcome</h3><br>
+  <button onclick="showCreate()">➕ Create server</button><br><br>
+  <button onclick="showJoin()">🔑 Join server</button><br><br>
+  <button onclick="openSettings()">⚙️ Settings</button>
 </div>
 
 <div class="card" id="auth">
-  <h3>Conta</h3><br>
-  <input id="authNameInput" placeholder="Nome"><br><br>
-  <input id="authIconInput" placeholder="URL do ícone (opcional)"><br><br>
-  <button onclick="register()">Cadastrar</button>
+  <h3>Account</h3><br>
+  <input id="authNameInput" placeholder="Name"><br><br>
+  <input id="authIconInput" placeholder="Icon URL (Optional)"><br><br>
+  <button onclick="register()">Sign-up</button>
   <br><br>
   <button onclick="login()">Login</button>
 </div>
 
 <!-- CREATE SERVER -->
 <div class="card hidden" id="create">
-  <input id="srvNameInput" placeholder="Nome do servidor"><br><br>
-  <input id="srvPSGInput" placeholder="PSG (ID do servidor)"><br><br>
-  <input id="srvIconInput" placeholder="Ícone do servidor"><br><br>
-  <button type="button" onclick="createServer()">Criar</button>
+  <input id="srvNameInput" placeholder="Server Name"><br><br>
+  <input id="srvPSGInput" placeholder="Server PSG"><br><br>
+  <input id="srvIconInput" placeholder="Server Icon"><br><br>
+  <button type="button" onclick="createServer()">Create</button>
 </div>
 
 <!-- JOIN SERVER -->
 <div class="card hidden" id="join">
-  <input id="joinPSGInput" placeholder="PSG do servidor"><br><br>
-  <button onclick="joinServer()">Entrar</button>
+  <input id="joinPSGInput" placeholder="Server PSG"><br><br>
+  <button onclick="joinServer()">Enter</button>
 </div>
 
 
@@ -417,10 +521,11 @@ button {
 
 <!-- CHAT -->
 <div id="app" class="hidden">
-  <div class="topbar">
-    <b id="srvTitle"></b>
-    <button onclick="openSettings()">⚙️</button>
-  </div>
+<div class="topbar">
+  <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+  <b id="srvTitle"></b>
+  <button onclick="openSettings()">⚙️</button>
+</div>
 
   <div class="main">
     <div class="sidebar" id="channels"></div>
@@ -440,8 +545,8 @@ button {
         <input id="mediaInput" type="file" multiple
           accept="image/*,video/*,audio/*,.gif" hidden
           onchange="handleMedia(this.files)">
-        <input id="text" placeholder="Mensagem">
-        <button onclick="send()">Enviar</button>
+        <input id="text" placeholder="Message">
+        <button onclick="send()">Send</button>
       </div>
     </div>
   </div>
@@ -450,32 +555,32 @@ button {
 <!-- SETTINGS -->
 <div id="settings">
   <div class="settings-panel">
-    <h2>Configurações</h2><br>
-    <button onclick="settingsTab('account')">Conta</button>
-    <button onclick="settingsTab('theme')">Tema</button>
+    <h2>Settings</h2><br>
+    <button onclick="settingsTab('account')">Account</button>
+    <button onclick="settingsTab('theme')">Theme</button>
     <br><br>
 
     <div id="setAccount">
       <input id="setName"><br><br>
       <input id="setIcon"><br><br>
-      <button onclick="saveAccount()">Salvar</button><br><br>
-      <button onclick="logout()">Trocar conta</button><br><br>
-      <button onclick="deactivate()" style="background:red">Desativar conta</button>
+      <button onclick="saveAccount()">Save</button><br><br>
+      <button onclick="logout()">Change account</button><br><br>
+      <button onclick="deactivate()" style="background:red">Disable account</button>
     </div>
 
     <div id="setTheme" class="hidden">
-      <button onclick="setTheme('#0b0b12')">Escuro</button>
-      <button onclick="setTheme('#f5f5f5')">Claro</button>
+      <button onclick="setTheme('#0b0b12')">Dark</button>
+      <button onclick="setTheme('#f5f5f5')">Bright</button>
     </div>
 
     <br>
-    <button onclick="closeSettings()">Fechar</button>
+    <button onclick="closeSettings()">Close</button>
   </div>
 </div>
 
 <script>
 let server = {
-  name: "Servidor",
+  name: "Untitled",
   psg: "",
   icon: "",
   channels: {
@@ -524,7 +629,7 @@ function enterChat() {
   app.classList.add("active");
   app.classList.remove("hidden");
 
-  srvTitle.textContent = server?.name || "Servidor";
+  srvTitle.textContent = server?.name || "Server";
   renderChannels();
 }
 
@@ -566,7 +671,7 @@ function closeError(){
 async function doLogin(){
   const psk=loginPSK.value
   if(!psk.startsWith("PSK://DO-NOT-SHARE-THIS/")){
-    return showError("PSK inválido")
+    return showError("Invalid PSK")
   }
   const hash=await sha256(psk)
   const acc=db.get("account")
@@ -575,7 +680,7 @@ async function doLogin(){
     loginModal.style.display="none"
     showHome()
   }else{
-    showError("PSK incorreto")
+    showError("Incorrect PSK")
   }
 }
 function closeLogin(){
@@ -602,7 +707,7 @@ const replyingText = document.getElementById("replyingText");
 
 function updateReplyBar() {
   if (replying) {
-    replyingText.textContent = `Você está respondendo para @${replying.user}`;
+    replyingText.textContent = `You are replying to @${replying.user}`;
     replyingBar.classList.remove("hidden");
   } else {
     replyingText.textContent = "";
@@ -780,7 +885,7 @@ let messagesData={}
 
 function createServer() {
   server = {
-    name: srvName.value || "Servidor",
+    name: srvName.value || "Server",
     psg: srvPSG.value || crypto.randomUUID(),
     icon: srvIcon.value || "",
     channels: {
@@ -821,7 +926,7 @@ peer.on("connection", c => {
 
 function joinServer(){
   const base = joinPSG.value.trim();
-  if(!base) return alert("PSG inválido");
+  if(!base) return alert("Invalid PSG");
 
   const hostId = base + "-host";
   const myId = base + "-" + crypto.randomUUID().slice(0,5);
@@ -835,7 +940,7 @@ function joinServer(){
 
     const timeout = setTimeout(() => {
       if(!ok){
-        alert("Servidor não encontrado ou offline");
+        alert("Server not found/You are offline");
         location.reload();
       }
     }, 4000);
@@ -856,7 +961,7 @@ function joinServer(){
     });
 
     c.on("error", () => {
-      alert("Erro ao conectar");
+      alert("Error on connecting");
       location.reload();
     });
   });
@@ -869,7 +974,14 @@ function renderChannels(){
     const d=document.createElement("div")
     d.textContent="# "+c
     d.className="channel"+(c===channel?" active":"")
-    d.onclick=()=>{channel=c;renderChannels();renderMessages()}
+    d.onclick = () => {
+      channel = c;
+      renderChannels();
+      renderMessages();
+
+      // FECHA SIDEBAR NO MOBILE
+      document.querySelector(".sidebar")?.classList.remove("open");
+    };
     channels.appendChild(d)
   })
   renderMessages()
@@ -948,7 +1060,7 @@ function logout(){
   location.reload()
 }
 function deactivate(){
-  if(confirm("Isso é irreversível. Continuar?")){
+  if(confirm("This is irreversible. Continue?")){
     db.del("account")
     location.reload()
   }
@@ -979,6 +1091,12 @@ Object.assign(window, {
   createServer,
   joinServer
 });
+function toggleSidebar(){
+  document.querySelector(".sidebar").classList.toggle("open");
+}
+function toggleSidebar(){
+  document.querySelector(".sidebar").classList.toggle("open");
+}
 
 </script>
 
@@ -986,12 +1104,12 @@ Object.assign(window, {
 <!-- MODAL PSK -->
 <div class="modal" id="pskModal">
   <div class="modal-box">
-    <h3>⚠️ SEU PSK</h3>
-    <p>Guarde este código. Ele é sua senha.</p>
+    <h3>⚠️ YOUR PSK</h3>
+    <p>Save this code, its your password.</p>
     <textarea id="pskValue" rows="3" readonly></textarea>
     <div class="modal-actions">
-      <button onclick="copyPSK()">📋 Copiar</button>
-      <button onclick="closePSK()">Continuar</button>
+      <button onclick="copyPSK()">Copy</button>
+      <button onclick="closePSK()">Continue</button>
     </div>
   </div>
 </div>
@@ -1000,11 +1118,11 @@ Object.assign(window, {
 <div class="modal" id="loginModal">
   <div class="modal-box">
     <h3>Login</h3>
-    <p>Cole seu PSK</p>
+    <p>Paste your PSK</p>
     <input id="loginPSK">
     <div class="modal-actions">
-      <button onclick="doLogin()">Entrar</button>
-      <button onclick="closeLogin()">Cancelar</button>
+      <button onclick="doLogin()">Enter</button>
+      <button onclick="closeLogin()">Cancel</button>
     </div>
   </div>
 </div>
@@ -1012,7 +1130,7 @@ Object.assign(window, {
 <!-- MODAL ERROR -->
 <div class="modal" id="errorModal">
   <div class="modal-box">
-    <h3>Erro</h3>
+    <h3>Error</h3>
     <p id="errorText"></p>
     <div class="modal-actions">
       <button onclick="closeError()">OK</button>
