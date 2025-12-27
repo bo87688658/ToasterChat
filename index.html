@@ -92,7 +92,7 @@ body {
 }
 
 .sidebar {
-  width: 220px;
+  width: 300px;
   background: #111;
   padding: 10px;
   overflow-y: auto;
@@ -487,6 +487,79 @@ button {
     max-height: 80px;
   }
 }
+.msg-actions,
+.channel-actions {
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 4px;
+  z-index: 5;
+}
+
+.msg-actions button,
+.channel-actions button {
+  background: #222;
+  color: #fff;
+  border: none;
+  padding: 4px 6px;
+  font-size: 11px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.msg-actions button:hover,
+.channel-actions button:hover {
+  background: var(--accent);
+  color: #000;
+}
+
+.msg {
+  position: relative;
+}
+
+.channel {
+  position: relative;
+}
+#addChannelBtn {
+  background: #111;
+  color: var(--accent);
+  border-radius: 6px;
+  margin: 6px;
+  text-align: center;
+}
+
+#addChannelBtn:hover {
+  background: var(--accent);
+  color: #000;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+}
+
+#channels {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.add-channel {
+  margin-top: auto;
+  padding: 10px;
+  text-align: center;
+  cursor: pointer;
+  font-weight: bold;
+  background: #111;
+  color: var(--accent);
+  border-radius: 8px;
+}
+
+.add-channel:hover {
+  background: var(--accent);
+  color: #000;
+}
 
 </style>
 </head>
@@ -541,7 +614,13 @@ button {
 </div>
 
   <div class="main">
-    <div class="sidebar" id="channels"></div>
+<div class="sidebar">
+  <div id="channels"></div>
+
+  <div id="addChannelBtn" class="add-channel hidden">
+    + Add channel
+  </div>
+</div>
 
     <div class="chat">
       <div class="messages" id="messages"></div>
@@ -829,6 +908,44 @@ function renderMediaBar(){
   });
 }
 
+function addHoldListener(el, callback){
+  let timer;
+  let longPress = false;
+
+  // PC
+  el.addEventListener("mousedown", () => {
+    longPress = false;
+    timer = setTimeout(()=>{
+      longPress = true;
+      callback();
+    }, 2000);
+  });
+
+  el.addEventListener("mouseup", () => clearTimeout(timer));
+  el.addEventListener("mouseleave", () => clearTimeout(timer));
+
+  // Mobile
+  el.addEventListener("touchstart", () => {
+    longPress = false;
+    timer = setTimeout(()=>{
+      longPress = true;
+      callback();
+    }, 600);
+  });
+
+  el.addEventListener("touchend", () => {
+    clearTimeout(timer);
+    // 🔥 deixa o click passar se NÃO foi long press
+    if(longPress) event.preventDefault();
+  });
+
+  // Right click
+  el.addEventListener("contextmenu", e => {
+    e.preventDefault();
+    callback();
+  });
+}
+
 // Atualiza a função do click em renderMessages
 function renderMessages(){
   messages.innerHTML = "";
@@ -903,6 +1020,9 @@ function renderMessages(){
     wrap.appendChild(avatar);
     wrap.appendChild(content);
     wrap.onclick = ()=>setReply(m);
+    if(m.user === account.name){
+  addHoldListener(wrap, () => showMessageActions(wrap, m));
+}
     messages.appendChild(wrap);
   });
 
@@ -959,13 +1079,15 @@ function createServer(){
 function startPeer(id){
   peer = new Peer(id);
 
+  peer.on("open", ()=>{
+    updateAddChannelButton(); // 🔥 AQUI
+  });
+
   peer.on("connection", c => {
     conns[c.peer] = c;
-
     c.on("data", handle);
   });
 }
-
 
 function joinServer(){
   const base = joinPSG.value.trim();
@@ -1011,25 +1133,29 @@ const myId = safe + "-" + crypto.randomUUID().slice(0,5);
   });
 }
 
-/* ===== CHAT ===== */
 function renderChannels(){
-  channels.innerHTML=""
+  channels.innerHTML = "";
+
   Object.keys(server.channels).forEach(c=>{
-    const d=document.createElement("div")
-    d.textContent="# "+c
-    d.className="channel"+(c===channel?" active":"")
+    const d = document.createElement("div");
+    d.textContent = "# " + c;
+    d.className = "channel" + (c === channel ? " active" : "");
+
     d.onclick = () => {
       channel = c;
       renderChannels();
       renderMessages();
-
-      // FECHA SIDEBAR NO MOBILE
       document.querySelector(".sidebar")?.classList.remove("open");
     };
-    channels.appendChild(d)
-  })
-  renderMessages()
+
+    if(peer && peer.id.endsWith("-host")){
+      addHoldListener(d, () => showChannelActions(d, c));
+    }
+
+    channels.appendChild(d);
+  });
 }
+
 function send(){
   if(!text.value && mediaFiles.length === 0) return;
 
@@ -1060,30 +1186,51 @@ function broadcast(m){
   Object.values(conns).forEach(c=>c.send({type:"msg",channel,msg:m}))
 }
 function handle(d){
-  // HOST recebe hello
+
   if(d.type === "hello"){
     const c = conns[this.peer] || Object.values(conns).find(x => x.peer === this.peer);
     if(c){
-      c.send({
-        type: "sync",
-        server
-      });
+      c.send({ type:"sync", server });
     }
     return;
   }
 
-  if(d.type === "sync"){
-    server = d.server;
-    enterChat(); // 🔥 ENTRA SÓ AQUI
-    return;
-  }
+if(d.type === "sync"){
+  server = d.server;
+  enterChat();
+  updateAddChannelButton(); // 🔥 AQUI
+  return;
+}
 
   if(d.type === "msg"){
     server.channels[d.channel].push(d.msg);
     renderMessages();
+    return;
+  }
+
+  if(d.type === "edit"){
+    const m = server.channels[d.channel]?.find(x => x.id === d.id);
+    if(m){
+      m.text = d.text;
+      renderMessages();
+    }
+    return;
+  }
+
+  if(d.type === "delete"){
+    server.channels[d.channel] =
+      server.channels[d.channel].filter(x => x.id !== d.id);
+    renderMessages();
+    return;
+  }
+
+  if(d.type === "channels"){
+    server = d.server;
+    renderChannels();
+    renderMessages();
+    return;
   }
 }
-
 /* ===== SETTINGS ===== */
 function openSettings(){
   settings.style.display="block"
@@ -1176,9 +1323,21 @@ function announcePublicServer(){
     });
   });
 }
-function openPublicServers(){
-  publicModal.style.display="flex";
-  publicList.innerHTML = "Loading...";
+function openPublicServers() {
+  publicModal.style.display = "flex";
+  publicList.innerHTML = `
+    <div style="
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:10px;
+      padding:20px;
+    ">
+      <img src="https://i.imgur.com/zljYshI.gif" width="120" height="120">
+      <span>Loading public servers...</span>
+    </div>
+  `;
+}
 
   const p = new Peer();
 
@@ -1195,7 +1354,6 @@ function openPublicServers(){
       }
     });
   });
-}
 
 function closePublic(){
   publicModal.style.display="none";
@@ -1221,6 +1379,50 @@ div.onclick = ()=>{
 
     publicList.appendChild(div);
   });
+}
+
+function updateAddChannelButton(){
+  const addBtn = document.getElementById("addChannelBtn");
+  if(peer && peer.id && peer.id.endsWith("-host")){
+    addBtn.classList.remove("hidden");
+  }else{
+    addBtn.classList.add("hidden");
+  }
+}
+
+function showMessageActions(wrap, msg){
+  if(wrap.querySelector(".msg-actions")) return;
+
+  const box = document.createElement("div");
+  box.className = "msg-actions";
+
+  const edit = document.createElement("button");
+  edit.textContent = "Edit";
+  edit.onclick = () => {
+    const newText = prompt("Edit message:", msg.text);
+    if(newText !== null){
+      msg.text = newText;
+      broadcast({ type:"edit", channel, id: msg.id, text: newText });
+      renderMessages();
+    }
+    box.remove();
+  };
+
+  const del = document.createElement("button");
+  del.textContent = "Delete";
+  del.onclick = () => {
+    server.channels[channel] =
+      server.channels[channel].filter(m => m.id !== msg.id);
+    broadcast({ type:"delete", channel, id: msg.id });
+    renderMessages();
+    box.remove();
+  };
+
+  box.appendChild(edit);
+  box.appendChild(del);
+  wrap.appendChild(box);
+
+  setTimeout(()=>box.remove(), 4000);
 }
 
 // ===== PUBLIC DIRECTORY (TRACKER) =====
@@ -1267,6 +1469,73 @@ try{
 }catch(e){
   console.log("Directory already running");
 }
+function showChannelActions(el, ch){
+  document.querySelectorAll(".channel-actions").forEach(x=>x.remove());
+
+  const box = document.createElement("div");
+  box.className = "channel-actions";
+  const rename = document.createElement("button");
+  rename.textContent = "Rename";
+  rename.onclick = ()=>{
+    const n = prompt("New channel name:", ch);
+    if(n && !server.channels[n]){
+      server.channels[n] = server.channels[ch];
+      delete server.channels[ch];
+      channel = n;
+      broadcast({ type:"channels", server });
+      renderChannels();
+    }
+    box.remove();
+  };
+
+const del = document.createElement("button");
+del.textContent = "Delete";
+del.onclick = ()=>{
+  if(ch === "general"){
+    alert("The public channel cannot be deleted.");
+    return;
+  }
+
+  if(confirm("Delete channel?")){
+    delete server.channels[ch];
+    channel = Object.keys(server.channels)[0];
+    broadcast({ type:"channels", server });
+    renderChannels();
+    renderMessages();
+  }
+  box.remove();
+};
+
+  box.appendChild(rename);
+  box.appendChild(del);
+  el.appendChild(box);
+
+  setTimeout(()=>box.remove(), 4000);
+}
+
+const addBtn = document.getElementById("addChannelBtn");
+
+if(peer && peer.id.endsWith("-host")){
+  addBtn.style.display = "block";
+}
+
+addBtn.onclick = ()=>{
+  let name = "Untitled channel";
+  let i = 1;
+
+  while(server.channels[name]){
+    name = `Untitled channel ${i++}`;
+  }
+
+  server.channels[name] = [];
+
+  channel = name;
+  broadcast({ type:"channels", server });
+
+  renderChannels();
+  renderMessages();
+};
+
 
 </script>
 
