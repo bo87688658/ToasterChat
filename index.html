@@ -10,6 +10,18 @@
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
 <style>
+
+  .public-item{
+  padding:8px;
+  background:#1a1a22;
+  border-radius:8px;
+  margin-bottom:6px;
+  cursor:pointer;
+}
+.public-item:hover{
+  background:#222;
+}
+
 :root{
   --bg:#0b0b12;
   --panel:#111;
@@ -491,6 +503,7 @@ button {
   <button onclick="showCreate()">➕ Create server</button><br><br>
   <button onclick="showJoin()">🔑 Join server</button><br><br>
   <button onclick="openSettings()">⚙️ Settings</button>
+  <button onclick="openPublicServers()">🌍 Public Servers</button><br><br>
 </div>
 
 <div class="card" id="auth">
@@ -578,6 +591,16 @@ button {
   </div>
 </div>
 
+<div class="modal" id="publicModal">
+  <div class="modal-box">
+    <h3>🌍 Public Servers</h3>
+    <div id="publicList" style="max-height:260px;overflow:auto"></div>
+    <div class="modal-actions">
+      <button onclick="closePublic()">Close</button>
+    </div>
+  </div>
+</div>
+
 <script>
 let server = {
   name: "Untitled",
@@ -588,6 +611,9 @@ let server = {
     "Off-topic": []
   }
 }
+let directoryPeer;
+let directoryConn;
+
 
 const screen = document.getElementById("screen")
 const auth = document.getElementById("auth")
@@ -631,6 +657,10 @@ function enterChat() {
 
   srvTitle.textContent = server?.name || "Server";
   renderChannels();
+}
+
+function psgToPeer(psg){
+  return psg.replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
 /* ===== ACCOUNT ===== */
@@ -883,10 +913,17 @@ function renderMessages(){
 let peer, conns={}, channel="General"
 let messagesData={}
 
-function createServer() {
+function createServer(){
+  let psg = srvPSG.value.trim();
+
+  // 🌍 se vazio, vira público automaticamente
+  if(psg === ""){
+    psg = "public/" + Math.floor(100000 + Math.random()*900000);
+  }
+
   server = {
     name: srvName.value || "Server",
-    psg: srvPSG.value || crypto.randomUUID(),
+    psg: psg,
     icon: srvIcon.value || "",
     channels: {
       "General": [],
@@ -895,11 +932,30 @@ function createServer() {
   };
 
   channel = "General";
-  startPeer(server.psg + "-host");
 
-  // HOST entra direto
+  // inicia Peer com ID seguro
+  startPeer(psgToPeer(server.psg) + "-host");
+
+  // host entra direto no chat
   enterChat();
+
+  // se for público, anuncia e envia mensagem de system
+  if(server.psg.startsWith("public/")){
+    announcePublicServer();
+
+    const msg = {
+      id: crypto.randomUUID(),
+      user: "System",
+      text: `🌍 This is a public server. PSG: ${server.psg}`,
+      media: [],
+      reply: null
+    };
+
+    server.channels[channel].push(msg);
+    renderMessages();
+  }
 }
+
 function startPeer(id){
   peer = new Peer(id);
 
@@ -910,26 +966,14 @@ function startPeer(id){
   });
 }
 
-peer.on("connection", c => {
-  conns[c.peer] = c;
-
-  c.on("open", () => {
-    // envia estado completo do servidor
-    c.send({
-      type: "sync",
-      server
-    });
-  });
-
-  c.on("data", handle);
-});
 
 function joinServer(){
   const base = joinPSG.value.trim();
   if(!base) return alert("Invalid PSG");
 
-  const hostId = base + "-host";
-  const myId = base + "-" + crypto.randomUUID().slice(0,5);
+const safe = psgToPeer(base);
+const hostId = safe + "-host";
+const myId = safe + "-" + crypto.randomUUID().slice(0,5);
 
   startPeer(myId);
 
@@ -1068,6 +1112,18 @@ function deactivate(){
 function setTheme(bg){
   document.documentElement.style.setProperty("--bg",bg)
 }
+function systemMessage(text){
+  const msg = {
+    id: crypto.randomUUID(),
+    user: "System",
+    text,
+    system: true
+  };
+
+  server.channels[channel].push(msg);
+  renderMessages();
+}
+
 // ===== EXPOSE TO HTML =====
 Object.assign(window, {
   register,
@@ -1096,6 +1152,120 @@ function toggleSidebar(){
 }
 function toggleSidebar(){
   document.querySelector(".sidebar").classList.toggle("open");
+}
+function announcePublicServer(){
+  const p = new Peer();
+
+  p.on("open", ()=>{
+    const c = p.connect("public-directory");
+
+    const send = ()=>{
+      c.send({
+        type:"announce",
+        server:{
+          name: server.name,
+          psg: server.psg,
+          icon: server.icon
+        }
+      });
+    };
+
+    c.on("open", ()=>{
+      send();
+      setInterval(send, 10000); // 🔄 a cada 10s
+    });
+  });
+}
+function openPublicServers(){
+  publicModal.style.display="flex";
+  publicList.innerHTML = "Loading...";
+
+  const p = new Peer();
+
+  p.on("open", ()=>{
+    const c = p.connect("public-directory");
+
+    c.on("open", ()=>{
+      c.send({type:"list"});
+    });
+
+    c.on("data", d=>{
+      if(d.type==="list"){
+        renderPublicList(d.servers);
+      }
+    });
+  });
+}
+
+function closePublic(){
+  publicModal.style.display="none";
+}
+function renderPublicList(list){
+  publicList.innerHTML = "";
+
+  if(list.length === 0){
+    publicList.textContent = "No public servers online";
+    return;
+  }
+
+  list.forEach(s=>{
+    const div = document.createElement("div");
+    div.className = "public-item";
+    div.textContent = s.name || "Unnamed server";
+
+div.onclick = ()=>{
+  joinPSG.value = s.psg;
+  closePublic();
+  joinServer();
+};
+
+    publicList.appendChild(div);
+  });
+}
+
+// ===== PUBLIC DIRECTORY (TRACKER) =====
+let directory = {};
+let directoryHost = null;
+
+try{
+  directoryHost = new Peer("public-directory");
+
+  directoryHost.on("open", ()=>{
+    console.log("🌍 Public directory online");
+  });
+
+  directoryHost.on("connection", c=>{
+    c.on("data", d=>{
+
+      // servidor anuncia
+      if(d.type === "announce"){
+        directory[c.peer] = {
+          ...d.server,
+          time: Date.now()
+        };
+      }
+
+      // cliente pede lista
+      if(d.type === "list"){
+        const now = Date.now();
+
+        // remove servidores mortos
+        Object.keys(directory).forEach(k=>{
+          if(now - directory[k].time > 30000){
+            delete directory[k];
+          }
+        });
+
+        c.send({
+          type: "list",
+          servers: Object.values(directory)
+        });
+      }
+    });
+  });
+
+}catch(e){
+  console.log("Directory already running");
 }
 
 </script>
