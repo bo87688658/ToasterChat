@@ -1172,7 +1172,7 @@ function send(){
   };
 
   server.channels[channel].push(msg);
-  broadcast(msg);
+broadcastMessage(msg);
 
   text.value = "";
   mediaFiles = [];
@@ -1182,9 +1182,16 @@ function send(){
   renderMessages();
 }
 
-function broadcast(m){
-  Object.values(conns).forEach(c=>c.send({type:"msg",channel,msg:m}))
+function broadcastPacket(packet){
+  Object.values(conns).forEach(c => c.send(packet));
 }
+
+function broadcastMessage(msg){
+  Object.values(conns).forEach(c =>
+    c.send({ type:"msg", channel, msg })
+  );
+}
+
 function handle(d){
 
   if(d.type === "hello"){
@@ -1208,28 +1215,33 @@ if(d.type === "sync"){
     return;
   }
 
-  if(d.type === "edit"){
-    const m = server.channels[d.channel]?.find(x => x.id === d.id);
-    if(m){
-      m.text = d.text;
-      renderMessages();
-    }
-    return;
+if(d.type === "edit"){
+  const m = server.channels[d.channel]?.find(x => x.id === d.id);
+  if(m){
+    m.text = d.text;
+    renderMessages();
+  }
+  return;
+}
+
+if(d.type === "delete"){
+  server.channels[d.channel] =
+    server.channels[d.channel].filter(x => x.id !== d.id);
+  renderMessages();
+  return;
+}
+
+if(d.type === "channels"){
+  server = d.server;
+
+  if(!server.channels[channel]){
+    channel = Object.keys(server.channels)[0];
   }
 
-  if(d.type === "delete"){
-    server.channels[d.channel] =
-      server.channels[d.channel].filter(x => x.id !== d.id);
-    renderMessages();
-    return;
-  }
-
-  if(d.type === "channels"){
-    server = d.server;
-    renderChannels();
-    renderMessages();
-    return;
-  }
+  renderChannels();
+  renderMessages();
+  return;
+}
 }
 /* ===== SETTINGS ===== */
 function openSettings(){
@@ -1398,22 +1410,27 @@ function showMessageActions(wrap, msg){
 
   const edit = document.createElement("button");
   edit.textContent = "Edit";
-  edit.onclick = () => {
-    const newText = prompt("Edit message:", msg.text);
-    if(newText !== null){
-      msg.text = newText;
-      broadcast({ type:"edit", channel, id: msg.id, text: newText });
-      renderMessages();
-    }
-    box.remove();
-  };
+edit.onclick = () => {
+  const newText = prompt("Edit message:", msg.text);
+  if(newText !== null){
+    msg.text = newText; // atualiza localmente
+broadcastPacket({
+  type:"edit",
+  channel,
+  id: msg.id,
+  text: newText
+});
+    renderMessages();
+  }
+  box.remove();
+};
 
   const del = document.createElement("button");
   del.textContent = "Delete";
   del.onclick = () => {
     server.channels[channel] =
       server.channels[channel].filter(m => m.id !== msg.id);
-    broadcast({ type:"delete", channel, id: msg.id });
+broadcastPacket({ type:"delete", channel, id: msg.id });
     renderMessages();
     box.remove();
   };
@@ -1482,7 +1499,7 @@ function showChannelActions(el, ch){
       server.channels[n] = server.channels[ch];
       delete server.channels[ch];
       channel = n;
-      broadcast({ type:"channels", server });
+      broadcastPacket({ type:"channels", server });
       renderChannels();
     }
     box.remove();
@@ -1491,7 +1508,7 @@ function showChannelActions(el, ch){
 const del = document.createElement("button");
 del.textContent = "Delete";
 del.onclick = ()=>{
-  if(ch === "general"){
+  if(ch === "General"){
     alert("The public channel cannot be deleted.");
     return;
   }
@@ -1499,7 +1516,7 @@ del.onclick = ()=>{
   if(confirm("Delete channel?")){
     delete server.channels[ch];
     channel = Object.keys(server.channels)[0];
-    broadcast({ type:"channels", server });
+   broadcastPacket({ type:"channels", server });
     renderChannels();
     renderMessages();
   }
@@ -1514,11 +1531,6 @@ del.onclick = ()=>{
 }
 
 const addBtn = document.getElementById("addChannelBtn");
-
-if(peer && peer.id.endsWith("-host")){
-  addBtn.style.display = "block";
-}
-
 addBtn.onclick = ()=>{
   let name = "Untitled channel";
   let i = 1;
@@ -1530,7 +1542,7 @@ addBtn.onclick = ()=>{
   server.channels[name] = [];
 
   channel = name;
-  broadcast({ type:"channels", server });
+ broadcastPacket({ type:"channels", server });
 
   renderChannels();
   renderMessages();
